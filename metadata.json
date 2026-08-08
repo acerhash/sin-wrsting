@@ -1,0 +1,6 @@
+{
+  "name": "EIP-7702 ETH Node Studio",
+  "description": "Interactive Ethereum node simulator, EIP-7702 account abstraction playground, transaction builder, and Base mini app inspector.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
