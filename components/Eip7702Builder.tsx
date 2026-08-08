@@ -28,10 +28,16 @@ import {
   Gauge,
   Calculator,
   Flame,
-  Coins
+  Coins,
+  History,
+  Clock,
+  Undo2,
+  Trash2,
+  Bookmark
 } from 'lucide-react';
 
 const STORAGE_KEY = 'eip7702_builder_form_state_v1';
+const HISTORY_STORAGE_KEY = 'eip7702_builder_history_v1';
 
 const DEFAULT_STATE = {
   chainId: 84532,
@@ -64,6 +70,25 @@ export interface GasEstimateResult {
   estimatedFeeUsd: string;
   timestamp: string;
   rpcLatencyMs: number;
+}
+
+export interface Eip7702HistoryItem {
+  id: string;
+  timestamp: string;
+  formattedTime: string;
+  config: {
+    chainId: number;
+    eoaAddress: string;
+    targetAddress: string;
+    nonce: number;
+    gasLimit: number;
+    maxFeePerGas: number;
+    yParity: number;
+    rVal: string;
+    sVal: string;
+  };
+  authHash: string;
+  codePointer: string;
 }
 
 /**
@@ -133,6 +158,10 @@ export function Eip7702Builder() {
   const [isEstimatingGas, setIsEstimatingGas] = useState<boolean>(false);
   const [gasEstimateResult, setGasEstimateResult] = useState<GasEstimateResult | null>(null);
 
+  // Transaction History States
+  const [history, setHistory] = useState<Eip7702HistoryItem[]>([]);
+  const [historyNotification, setHistoryNotification] = useState<string | null>(null);
+
   // Validation States
   const isEoaValid = isValidAddress(eoaAddress);
   const isTargetValid = isValidAddress(targetAddress);
@@ -149,7 +178,7 @@ export function Eip7702Builder() {
   const [authHash, setAuthHash] = useState<string>('');
   const [codePointer, setCodePointer] = useState<string>('');
 
-  // Auto-load state on mount
+  // Auto-load form state & history on mount
   useEffect(() => {
     try {
       if (typeof window !== 'undefined') {
@@ -165,6 +194,47 @@ export function Eip7702Builder() {
           if (typeof parsed.yParity === 'number') setYParity(parsed.yParity);
           if (typeof parsed.rVal === 'string') setRVal(parsed.rVal);
           if (typeof parsed.sVal === 'string') setSVal(parsed.sVal);
+        }
+
+        const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
+        if (savedHistory) {
+          const parsedHistory = JSON.parse(savedHistory);
+          if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
+            setHistory(parsedHistory.slice(0, 5));
+          } else {
+            // Pre-seed with initial state if empty history
+            const defaultHash = compute7702AuthorizationHash({
+              chainId: DEFAULT_STATE.chainId,
+              address: DEFAULT_STATE.targetAddress,
+              nonce: DEFAULT_STATE.nonce
+            });
+            const defaultPointer = formatEoaCodePointer(DEFAULT_STATE.targetAddress);
+            const initialBuild: Eip7702HistoryItem = {
+              id: 'init-0',
+              timestamp: new Date().toISOString(),
+              formattedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              config: { ...DEFAULT_STATE },
+              authHash: defaultHash,
+              codePointer: defaultPointer
+            };
+            setHistory([initialBuild]);
+          }
+        } else {
+          const defaultHash = compute7702AuthorizationHash({
+            chainId: DEFAULT_STATE.chainId,
+            address: DEFAULT_STATE.targetAddress,
+            nonce: DEFAULT_STATE.nonce
+          });
+          const defaultPointer = formatEoaCodePointer(DEFAULT_STATE.targetAddress);
+          const initialBuild: Eip7702HistoryItem = {
+            id: 'init-0',
+            timestamp: new Date().toISOString(),
+            formattedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            config: { ...DEFAULT_STATE },
+            authHash: defaultHash,
+            codePointer: defaultPointer
+          };
+          setHistory([initialBuild]);
         }
       }
     } catch (e) {
@@ -197,6 +267,18 @@ export function Eip7702Builder() {
       console.error('Error persisting EIP-7702 configuration to localStorage:', e);
     }
   }, [chainId, eoaAddress, targetAddress, nonce, gasLimit, maxFeePerGas, yParity, rVal, sVal, isLoaded]);
+
+  // Persist transaction history
+  useEffect(() => {
+    if (!isLoaded) return;
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+      }
+    } catch (e) {
+      console.error('Error persisting transaction history to localStorage:', e);
+    }
+  }, [history, isLoaded]);
 
   useEffect(() => {
     try {
@@ -248,6 +330,105 @@ export function Eip7702Builder() {
     } catch (e) {
       console.error('Error resetting EIP-7702 config:', e);
     }
+  };
+
+  const handleSaveToHistory = () => {
+    if (!isFormValid) return;
+
+    const currentAuthHash = isTargetValid ? compute7702AuthorizationHash({
+      chainId,
+      address: targetAddress,
+      nonce: isNonceValid ? nonce : 0
+    }) : 'INVALID_TARGET_ADDRESS';
+
+    const currentCodePointer = isTargetValid ? formatEoaCodePointer(targetAddress) : '0xef01000000000000000000000000000000000000000000';
+
+    const newItem: Eip7702HistoryItem = {
+      id: 'tx-' + Date.now(),
+      timestamp: new Date().toISOString(),
+      formattedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      config: {
+        chainId,
+        eoaAddress,
+        targetAddress,
+        nonce,
+        gasLimit,
+        maxFeePerGas,
+        yParity,
+        rVal,
+        sVal
+      },
+      authHash: currentAuthHash,
+      codePointer: currentCodePointer
+    };
+
+    setHistory((prev) => {
+      // Check if duplicate config exists at top
+      const isSameAsTop = prev.length > 0 &&
+        prev[0].config.chainId === chainId &&
+        prev[0].config.eoaAddress === eoaAddress &&
+        prev[0].config.targetAddress === targetAddress &&
+        prev[0].config.nonce === nonce &&
+        prev[0].config.gasLimit === gasLimit &&
+        prev[0].config.maxFeePerGas === maxFeePerGas &&
+        prev[0].config.yParity === yParity &&
+        prev[0].config.rVal === rVal &&
+        prev[0].config.sVal === sVal;
+
+      if (isSameAsTop) {
+        setHistoryNotification('CURRENT CONFIG ALREADY AT TOP OF HISTORY');
+        setTimeout(() => setHistoryNotification(null), 2500);
+        return prev;
+      }
+
+      const nextHistory = [newItem, ...prev].slice(0, 5);
+      setHistoryNotification('SNAPSHOT SAVED TO TRANSACTION HISTORY');
+      setTimeout(() => setHistoryNotification(null), 2500);
+      return nextHistory;
+    });
+  };
+
+  const handleRevertToHistory = (item: Eip7702HistoryItem) => {
+    setChainId(item.config.chainId);
+    setEoaAddress(item.config.eoaAddress);
+    setTargetAddress(item.config.targetAddress);
+    setNonce(item.config.nonce);
+    setGasLimit(item.config.gasLimit);
+    setMaxFeePerGas(item.config.maxFeePerGas);
+    setYParity(item.config.yParity);
+    setRVal(item.config.rVal);
+    setSVal(item.config.sVal);
+    setGasEstimateResult(null);
+
+    setHistoryNotification(`REVERTED TO BUILD FROM ${item.formattedTime}`);
+    setTimeout(() => setHistoryNotification(null), 2500);
+  };
+
+  const handleClearHistory = () => {
+    setHistory([]);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(HISTORY_STORAGE_KEY);
+      }
+    } catch (e) {
+      console.error('Error clearing history:', e);
+    }
+    setHistoryNotification('TRANSACTION HISTORY CLEARED');
+    setTimeout(() => setHistoryNotification(null), 2500);
+  };
+
+  const isMatchingHistoryItem = (item: Eip7702HistoryItem) => {
+    return (
+      item.config.chainId === chainId &&
+      item.config.eoaAddress.toLowerCase() === eoaAddress.toLowerCase() &&
+      item.config.targetAddress.toLowerCase() === targetAddress.toLowerCase() &&
+      item.config.nonce === nonce &&
+      item.config.gasLimit === gasLimit &&
+      item.config.maxFeePerGas === maxFeePerGas &&
+      item.config.yParity === yParity &&
+      item.config.rVal === rVal &&
+      item.config.sVal === sVal
+    );
   };
 
   const handleEstimateGas = async () => {
@@ -326,14 +507,21 @@ export function Eip7702Builder() {
 
         <div className="flex flex-col sm:flex-row gap-3">
           <button
+            onClick={handleSaveToHistory}
+            disabled={!isFormValid}
+            className="bg-green-500 text-black hover:bg-green-400 disabled:opacity-40 px-4 py-2 text-xs font-mono font-bold uppercase tracking-widest flex items-center justify-center gap-2 border border-green-500 transition-all cursor-pointer"
+          >
+            <Bookmark className="w-3.5 h-3.5" /> SAVE SNAPSHOT
+          </button>
+          <button
             onClick={handleRandomizeSig}
-            className="bg-white text-black hover:bg-[#eee] px-4 py-2 text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 border border-white transition-all"
+            className="bg-white text-black hover:bg-[#eee] px-4 py-2 text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 border border-white transition-all cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" /> RE-SIGN AUTH
           </button>
           <button
             onClick={handleResetDefaults}
-            className="bg-[#111] text-[#aaa] hover:text-white hover:border-[#444] px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-2 border border-[#222] transition-all"
+            className="bg-[#111] text-[#aaa] hover:text-white hover:border-[#444] px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-2 border border-[#222] transition-all cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" /> RESET DEFAULTS
           </button>
@@ -341,13 +529,17 @@ export function Eip7702Builder() {
       </div>
 
       {/* Auto-save & Validation Status Indicator Bar */}
-      <div className="bg-[#0a0a0a] border border-[#222] px-4 py-2 flex items-center justify-between font-mono text-[11px] text-[#666] uppercase tracking-wider">
+      <div className="bg-[#0a0a0a] border border-[#222] px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-[11px] text-[#666] uppercase tracking-wider">
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${isFormValid ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></span>
           <span>{isFormValid ? 'ALL FORM INPUTS VALIDATED' : 'ATTENTION: FIX INVALID INPUT HIGHLIGHTED BELOW'}</span>
         </div>
-        <div>
-          {lastSavedAt ? `LAST UPDATED: ${lastSavedAt}` : 'READY'}
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5 text-green-400 font-bold">
+            <History className="w-3.5 h-3.5 text-green-400" />
+            HISTORY: {history.length}/5 SAVED
+          </span>
+          <span>{lastSavedAt ? `LAST UPDATED: ${lastSavedAt}` : 'READY'}</span>
         </div>
       </div>
 
@@ -803,6 +995,136 @@ export function Eip7702Builder() {
             </pre>
           </div>
         </div>
+      </div>
+
+      {/* 05. Transaction History Section (Tracks Last 5 Built Transactions) */}
+      <div className="bg-[#080808] border border-[#222] p-6 space-y-4 font-mono">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-[#1a1a1a] pb-4">
+          <div className="flex items-center gap-2.5">
+            <History className="w-5 h-5 text-green-400 shrink-0" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-mono font-bold uppercase tracking-[0.2em] text-white">
+                  05. TRANSACTION HISTORY
+                </h3>
+                <span className="bg-green-500/20 text-green-400 border border-green-500/40 text-[10px] px-2 py-0.5 font-bold">
+                  {history.length} / 5 BUILDS
+                </span>
+              </div>
+              <p className="text-xs text-[#888] mt-0.5">
+                Tracks the last 5 transaction configurations built. Click any saved snapshot to instantly restore its configuration.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSaveToHistory}
+              disabled={!isFormValid}
+              className="px-3 py-1.5 bg-green-500 hover:bg-green-400 disabled:opacity-40 text-black text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Bookmark className="w-3.5 h-3.5" /> SAVE SNAPSHOT
+            </button>
+            {history.length > 0 && (
+              <button
+                onClick={handleClearHistory}
+                className="px-3 py-1.5 bg-[#111] hover:bg-red-950/40 text-[#aaa] hover:text-red-400 border border-[#222] hover:border-red-500/40 text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> CLEAR
+              </button>
+            )}
+          </div>
+        </div>
+
+        {historyNotification && (
+          <div className="p-2.5 bg-green-950/40 border border-green-500/50 text-green-400 text-xs flex items-center gap-2 animate-pulse">
+            <Sparkles className="w-4 h-4 text-green-400 shrink-0" />
+            <span className="font-bold">{historyNotification}</span>
+          </div>
+        )}
+
+        {history.length === 0 ? (
+          <div className="p-8 text-center bg-[#0d0d0d] border border-[#1f1f1f] space-y-2">
+            <Clock className="w-8 h-8 text-[#444] mx-auto" />
+            <p className="text-xs text-[#888] uppercase tracking-wider font-bold">
+              NO TRANSACTION HISTORY SAVED YET
+            </p>
+            <p className="text-xs text-[#666]">
+              Click <strong className="text-white">SAVE SNAPSHOT</strong> to store your current valid transaction payload.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {history.map((item, idx) => {
+              const isActive = isMatchingHistoryItem(item);
+              return (
+                <div
+                  key={item.id}
+                  className={`p-3.5 bg-[#0d0d0d] border flex flex-col justify-between space-y-3 transition-all relative ${
+                    isActive
+                      ? 'border-green-500 bg-green-950/20 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
+                      : 'border-[#222] hover:border-[#444]'
+                  }`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between border-b border-[#222] pb-2 text-[10px]">
+                      <span className="text-green-400 font-bold uppercase tracking-wider">
+                        BUILD #{idx + 1}
+                      </span>
+                      <span className="text-[#666] flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-[#555]" />
+                        {item.formattedTime}
+                      </span>
+                    </div>
+
+                    {isActive && (
+                      <div className="bg-green-500 text-black font-bold text-[9px] uppercase px-2 py-0.5 tracking-wider flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> ACTIVE FORM
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5 text-[11px]">
+                      <div>
+                        <span className="text-[#666] text-[9px] block uppercase">CHAIN ID</span>
+                        <span className="text-white font-bold">{item.config.chainId}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#666] text-[9px] block uppercase">TARGET DELEGATE</span>
+                        <span className="text-green-400 font-bold break-all text-[10px]" title={item.config.targetAddress}>
+                          {item.config.targetAddress.slice(0, 6)}...{item.config.targetAddress.slice(-6)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#666] text-[9px] block uppercase">EOA SIGNER</span>
+                        <span className="text-[#aaa] break-all text-[10px]" title={item.config.eoaAddress}>
+                          {item.config.eoaAddress.slice(0, 6)}...{item.config.eoaAddress.slice(-6)}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 text-[10px] text-[#888] pt-1.5 border-t border-[#1a1a1a]">
+                        <span>NONCE: <strong className="text-white">{item.config.nonce}</strong></span>
+                        <span>GAS: <strong className="text-white">{item.config.gasLimit.toLocaleString()}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRevertToHistory(item)}
+                    disabled={isActive}
+                    className={`w-full py-1.5 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-[#1a1a1a] text-[#555] cursor-not-allowed border border-[#222]'
+                        : 'bg-white text-black hover:bg-[#eee] border border-white'
+                    }`}
+                  >
+                    <Undo2 className="w-3 h-3" />
+                    {isActive ? 'CURRENT FORM' : 'REVERT TO THIS'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
