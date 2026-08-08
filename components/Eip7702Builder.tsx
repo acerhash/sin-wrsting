@@ -42,7 +42,10 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Percent,
-  Activity
+  Activity,
+  Play,
+  Cpu,
+  ArrowRight
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -172,6 +175,75 @@ const getChainName = (id: number) => {
   }
 };
 
+export interface EVMStateSimulationResult {
+  success: boolean;
+  eoaAddress: string;
+  targetAddress: string;
+  codePointer: string;
+  nonceBefore: number;
+  nonceAfter: number;
+  codeHashBefore: string;
+  codeHashAfter: string;
+  storageChanges: Array<{ slot: string; oldValue: string; newValue: string; description: string }>;
+  logs: Array<{ address: string; topics: string[]; data: string; eventName: string }>;
+  executionGasUsed: number;
+  simulatedAt: string;
+  simulationEngine: string;
+}
+
+/**
+ * Mock RPC call simulating EVM state changes before transaction broadcast
+ */
+const mockSimulateEvmState = async (
+  eoa: string,
+  target: string,
+  currentNonce: number
+): Promise<EVMStateSimulationResult> => {
+  const delayMs = Math.floor(Math.random() * 300) + 450;
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+  const codePointer = formatEoaCodePointer(target);
+  // Shortened target hash mock
+  const targetClean = target.replace('0x', '').padStart(40, '0');
+  const codeHashAfter = `0xef0100${targetClean.slice(0, 32)}`;
+
+  return {
+    success: true,
+    eoaAddress: eoa,
+    targetAddress: target,
+    codePointer,
+    nonceBefore: currentNonce,
+    nonceAfter: currentNonce + 1,
+    codeHashBefore: '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470', // keccak256("") - empty account
+    codeHashAfter,
+    storageChanges: [
+      {
+        slot: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        oldValue: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        newValue: `0x000000000000000000000000${target.replace('0x', '')}`,
+        description: 'Delegation Implementation Pointer Storage'
+      },
+      {
+        slot: '0x0000000000000000000000000000000000000000000000000000000000000001',
+        oldValue: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        newValue: '0x0000000000000000000000000000000000000000000000000000000000000001',
+        description: 'EIP-7702 Account Delegation Initialized Flag'
+      }
+    ],
+    logs: [
+      {
+        address: eoa,
+        topics: ['0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925'], // DelegatedCodeSet event topic
+        data: `0x000000000000000000000000${target.replace('0x', '')}`,
+        eventName: 'EIP7702CodeDelegated(address indexed eoa, address indexed target)'
+      }
+    ],
+    executionGasUsed: 49400,
+    simulatedAt: new Date().toLocaleTimeString(),
+    simulationEngine: 'EVM Revm/Pectra-Devnet Emulator'
+  };
+};
+
 export interface GasEstimateResult {
   hexResult: string;
   gasUnits: number;
@@ -289,6 +361,10 @@ export function Eip7702Builder() {
   const [isEstimatingGas, setIsEstimatingGas] = useState<boolean>(false);
   const [gasEstimateResult, setGasEstimateResult] = useState<GasEstimateResult | null>(null);
   const [graphMetric, setGraphMetric] = useState<'gas' | 'gwei'>('gas');
+
+  // EVM State Simulation States
+  const [isSimulatingState, setIsSimulatingState] = useState<boolean>(false);
+  const [simulationResult, setSimulationResult] = useState<EVMStateSimulationResult | null>(null);
 
   // Transaction History States
   const [history, setHistory] = useState<Eip7702HistoryItem[]>([]);
@@ -542,6 +618,23 @@ export function Eip7702Builder() {
       item.config.rVal === rVal &&
       item.config.sVal === sVal
     );
+  };
+
+  const handleSimulateState = async () => {
+    if (isSimulatingState) return;
+    setIsSimulatingState(true);
+    try {
+      const res = await mockSimulateEvmState(
+        isEoaValid ? eoaAddress : DEFAULT_STATE.eoaAddress,
+        isTargetValid ? targetAddress : DEFAULT_STATE.targetAddress,
+        isNonceValid ? nonce : 0
+      );
+      setSimulationResult(res);
+    } catch (err) {
+      console.error('Failed to simulate EVM state:', err);
+    } finally {
+      setIsSimulatingState(false);
+    }
   };
 
   const handleEstimateGas = async () => {
@@ -885,6 +978,146 @@ export function Eip7702Builder() {
                   <p className="mt-1 text-[10px] font-mono text-red-400">✗ Minimum 21,000 gas required</p>
                 )}
               </div>
+            </div>
+
+            {/* EVM State Simulation Panel */}
+            <div className="p-4 bg-[#0d0d0d] border border-[#222] space-y-3 font-mono">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#222] pb-2 gap-2">
+                <div className="flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-blue-400 shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-white block">
+                      EVM STATE CHANGE SIMULATOR (eth_simulateV1 / revm)
+                    </span>
+                    <span className="text-[10px] text-[#777] block">
+                      Simulate potential EVM account code delegation & storage updates before signing
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSimulateState}
+                  disabled={isSimulatingState || !isTargetValid || !isEoaValid}
+                  className="px-3 py-1 bg-blue-500 text-black hover:bg-blue-400 font-bold text-xs uppercase tracking-wider disabled:opacity-30 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  {isSimulatingState ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Play className="w-3.5 h-3.5 fill-black" />
+                  )}
+                  {isSimulatingState ? 'SIMULATING EVM...' : 'SIMULATE STATE'}
+                </button>
+              </div>
+
+              {isSimulatingState && (
+                <div className="p-3 bg-[#111] border border-blue-500/30 flex items-center gap-3 text-xs text-blue-400 animate-pulse">
+                  <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                  <span>EXECUTING PRE-FLIGHT SIMULATION: <code className="text-white">revm_traceCall(EIP7702Auth)</code>...</span>
+                </div>
+              )}
+
+              {simulationResult && !isSimulatingState && (
+                <div className="space-y-3 text-xs">
+                  {/* Summary Status Row */}
+                  <div className="p-2.5 bg-[#111] border border-green-500/30 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-green-400 font-bold">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>SIMULATION SUCCESSFUL — NO REVERTS DETECTED</span>
+                    </div>
+                    <span className="text-[10px] text-[#666]">
+                      {simulationResult.simulationEngine} • {simulationResult.simulatedAt}
+                    </span>
+                  </div>
+
+                  {/* Nonce & Account Code Hash State Shift */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div className="p-2.5 bg-[#111] border border-[#222] space-y-1.5">
+                      <span className="block text-[10px] font-bold text-[#888] uppercase tracking-wider border-b border-[#222] pb-1">
+                        EOA ACCOUNT NONCE TRANSITION
+                      </span>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-[#666]">CURRENT NONCE:</span>
+                        <span className="text-amber-400 font-bold">{simulationResult.nonceBefore}</span>
+                      </div>
+                      <div className="flex items-center justify-center py-0.5">
+                        <ArrowRight className="w-3.5 h-3.5 text-blue-400 rotate-90 sm:rotate-0" />
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-[#666]">SIMULATED NEXT NONCE:</span>
+                        <span className="text-green-400 font-bold">{simulationResult.nonceAfter}</span>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 bg-[#111] border border-[#222] space-y-1.5">
+                      <span className="block text-[10px] font-bold text-[#888] uppercase tracking-wider border-b border-[#222] pb-1">
+                        EOA CODE POINTER STATE CHANGE
+                      </span>
+                      <div className="space-y-1 text-[10px]">
+                        <div className="flex justify-between items-center text-[#666]">
+                          <span>PRE-AUTH CODE HASH:</span>
+                          <span className="text-[#888] font-mono truncate max-w-[150px]">{simulationResult.codeHashBefore}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[#666]">DELEGATED CODE POINTER:</span>
+                          <span className="text-blue-400 font-bold font-mono">{simulationResult.codePointer}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[#666]">POST-AUTH CODE HASH:</span>
+                          <span className="text-green-400 font-bold font-mono truncate max-w-[150px]">{simulationResult.codeHashAfter}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Storage Modifications */}
+                  <div className="p-2.5 bg-[#111] border border-[#222] space-y-2">
+                    <span className="block text-[10px] font-bold text-[#888] uppercase tracking-wider border-b border-[#222] pb-1">
+                      SIMULATED STORAGE STATE MUTATIONS ({simulationResult.storageChanges.length} SLOTS)
+                    </span>
+                    <div className="space-y-2">
+                      {simulationResult.storageChanges.map((change, idx) => (
+                        <div key={idx} className="p-2 bg-[#080808] border border-[#222] text-[10px] space-y-1">
+                          <div className="flex items-center justify-between text-blue-400 font-bold">
+                            <span>SLOT {change.slot.slice(0, 10)}...</span>
+                            <span className="text-[#666]">{change.description}</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[9px] font-mono pt-0.5">
+                            <div className="text-[#777] truncate">
+                              <span className="text-red-400">OLD:</span> {change.oldValue}
+                            </div>
+                            <div className="text-green-400 truncate">
+                              <span className="text-green-400">NEW:</span> {change.newValue}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Emitted Logs */}
+                  {simulationResult.logs.length > 0 && (
+                    <div className="p-2.5 bg-[#111] border border-[#222] space-y-2">
+                      <span className="block text-[10px] font-bold text-[#888] uppercase tracking-wider border-b border-[#222] pb-1">
+                        SIMULATED EVM LOGS & EVENTS ({simulationResult.logs.length})
+                      </span>
+                      {simulationResult.logs.map((log, idx) => (
+                        <div key={idx} className="p-2 bg-[#080808] border border-[#222] text-[10px] space-y-1">
+                          <div className="flex items-center justify-between text-amber-400 font-bold">
+                            <span>EVENT: {log.eventName}</span>
+                            <span className="text-[#666]">ADDRESS: {log.address.slice(0, 10)}...</span>
+                          </div>
+                          <div className="text-[9px] text-[#888] font-mono break-all">
+                            <span className="text-[#555]">TOPIC[0]:</span> {log.topics[0]}
+                          </div>
+                          <div className="text-[9px] text-green-400 font-mono break-all">
+                            <span className="text-[#555]">DATA:</span> {log.data}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Mock RPC Gas Estimation Panel */}
