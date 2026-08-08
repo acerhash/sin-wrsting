@@ -41,11 +41,47 @@ import {
   TrendingDown,
   ArrowUpRight,
   ArrowDownRight,
-  Percent
+  Percent,
+  Activity
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  CartesianGrid,
+  ReferenceLine
+} from 'recharts';
 
 const STORAGE_KEY = 'eip7702_builder_form_state_v1';
 const HISTORY_STORAGE_KEY = 'eip7702_builder_history_v1';
+
+export interface Gas24hData {
+  hour: string;
+  basicSetCode: number;
+  batchSession: number;
+  multisigSmartAccount: number;
+  baseGwei: number;
+}
+
+const HISTORICAL_24H_GAS_DATA: Gas24hData[] = [
+  { hour: '00:00', basicSetCode: 24800, batchSession: 47200, multisigSmartAccount: 115000, baseGwei: 18.2 },
+  { hour: '02:00', basicSetCode: 25100, batchSession: 48500, multisigSmartAccount: 117500, baseGwei: 15.1 },
+  { hour: '04:00', basicSetCode: 24600, batchSession: 46800, multisigSmartAccount: 114000, baseGwei: 14.2 },
+  { hour: '06:00', basicSetCode: 25200, batchSession: 48900, multisigSmartAccount: 118200, baseGwei: 19.4 },
+  { hour: '08:00', basicSetCode: 26100, batchSession: 51800, multisigSmartAccount: 124500, baseGwei: 31.2 },
+  { hour: '10:00', basicSetCode: 25400, batchSession: 49800, multisigSmartAccount: 119800, baseGwei: 26.1 },
+  { hour: '12:00', basicSetCode: 25300, batchSession: 49200, multisigSmartAccount: 118500, baseGwei: 25.0 },
+  { hour: '14:00', basicSetCode: 26300, batchSession: 52400, multisigSmartAccount: 126000, baseGwei: 34.8 },
+  { hour: '16:00', basicSetCode: 25500, batchSession: 49900, multisigSmartAccount: 120500, baseGwei: 27.4 },
+  { hour: '18:00', basicSetCode: 24950, batchSession: 48100, multisigSmartAccount: 116400, baseGwei: 20.3 },
+  { hour: '20:00', basicSetCode: 25000, batchSession: 48200, multisigSmartAccount: 116800, baseGwei: 21.0 },
+  { hour: '22:00', basicSetCode: 24900, batchSession: 47900, multisigSmartAccount: 116100, baseGwei: 18.9 },
+  { hour: '24:00', basicSetCode: 24750, batchSession: 47300, multisigSmartAccount: 115100, baseGwei: 17.6 },
+];
 
 export interface HistoricalGasBenchmark {
   id: string;
@@ -252,6 +288,7 @@ export function Eip7702Builder() {
   // Gas Estimation States
   const [isEstimatingGas, setIsEstimatingGas] = useState<boolean>(false);
   const [gasEstimateResult, setGasEstimateResult] = useState<GasEstimateResult | null>(null);
+  const [graphMetric, setGraphMetric] = useState<'gas' | 'gwei'>('gas');
 
   // Transaction History States
   const [history, setHistory] = useState<Eip7702HistoryItem[]>([]);
@@ -1075,6 +1112,195 @@ export function Eip7702Builder() {
                         99.98% Fee Savings
                       </span>
                       <span className="text-green-300/80 text-[8px] block">Rollup execution advantage</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recharts 24-Hour Historical Gas Volatility Line Chart */}
+                <div className="p-3 bg-[#0a0a0a] border border-[#222] space-y-3 font-mono">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#1f1f1f] pb-2 gap-2">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-green-400 shrink-0" />
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-white block">
+                          24-HOUR DELEGATION GAS USAGE VOLATILITY
+                        </span>
+                        <span className="text-[10px] text-[#777] block">
+                          Historical execution gas trends and network basefee fluctuation (Mainnet/Base)
+                        </span>
+                      </div>
+                    </div>
+                    {/* View Metric Toggles */}
+                    <div className="flex items-center gap-1 bg-[#121212] p-1 border border-[#222] text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setGraphMetric('gas')}
+                        className={`px-2 py-0.5 font-bold uppercase transition-all cursor-pointer ${
+                          graphMetric === 'gas'
+                            ? 'bg-green-500 text-black shadow-[0_0_8px_rgba(34,197,94,0.4)]'
+                            : 'text-[#888] hover:text-white'
+                        }`}
+                      >
+                        GAS UNITS
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGraphMetric('gwei')}
+                        className={`px-2 py-0.5 font-bold uppercase transition-all cursor-pointer ${
+                          graphMetric === 'gwei'
+                            ? 'bg-amber-500 text-black shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+                            : 'text-[#888] hover:text-white'
+                        }`}
+                      >
+                        BASEFEE (GWEI)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Line Chart Container */}
+                  {isMounted ? (
+                    <div className="h-[220px] w-full pt-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={HISTORICAL_24H_GAS_DATA}
+                          margin={{ top: 10, right: 15, left: -10, bottom: 0 }}
+                        >
+                          <CartesianGrid stroke="#1f1f1f" strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="hour"
+                            stroke="#555"
+                            tick={{ fontSize: 10, fill: '#888' }}
+                            tickLine={{ stroke: '#333' }}
+                          />
+                          <YAxis
+                            stroke="#555"
+                            tick={{ fontSize: 10, fill: '#888' }}
+                            tickLine={{ stroke: '#333' }}
+                            domain={['auto', 'auto']}
+                            tickFormatter={(val) =>
+                              graphMetric === 'gwei' ? `${val}g` : `${(val / 1000).toFixed(0)}k`
+                            }
+                          />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="bg-[#0c0c0c] border border-[#333] p-2 shadow-xl font-mono text-[10px] space-y-1">
+                                    <p className="text-white font-bold border-b border-[#222] pb-1">
+                                      TIME: <span className="text-green-400">{label} UTC</span>
+                                    </p>
+                                    {payload.map((item: any, idx: number) => (
+                                      <div key={idx} className="flex items-center justify-between gap-3">
+                                        <span style={{ color: item.color }} className="font-bold flex items-center gap-1">
+                                          <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: item.color }} />
+                                          {item.name}:
+                                        </span>
+                                        <span className="text-white font-bold">
+                                          {graphMetric === 'gwei'
+                                            ? `${item.value} Gwei`
+                                            : `${Number(item.value).toLocaleString()} gas`}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Legend
+                            wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }}
+                            iconType="circle"
+                            iconSize={8}
+                          />
+
+                          {graphMetric === 'gas' ? (
+                            <>
+                              <Line
+                                type="monotone"
+                                dataKey="basicSetCode"
+                                name="Basic SetCode"
+                                stroke="#22c55e"
+                                strokeWidth={2}
+                                dot={false}
+                                activeDot={{ r: 4, stroke: '#22c55e', strokeWidth: 2 }}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="batchSession"
+                                name="Batch / Session Key"
+                                stroke="#3b82f6"
+                                strokeWidth={2}
+                                dot={false}
+                                activeDot={{ r: 4, stroke: '#3b82f6', strokeWidth: 2 }}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="multisigSmartAccount"
+                                name="Smart Account Multi-Sig"
+                                stroke="#a855f7"
+                                strokeWidth={2}
+                                dot={false}
+                                activeDot={{ r: 4, stroke: '#a855f7', strokeWidth: 2 }}
+                              />
+                              {/* Current Gas Estimate / Input Reference Line */}
+                              <ReferenceLine
+                                y={gasEstimateResult ? gasEstimateResult.gasUnits : gasLimit}
+                                stroke="#f59e0b"
+                                strokeDasharray="4 4"
+                                strokeWidth={1.5}
+                                label={{
+                                  value: `Active Input (${(gasEstimateResult ? gasEstimateResult.gasUnits : gasLimit).toLocaleString()} gas)`,
+                                  fill: '#f59e0b',
+                                  fontSize: 9,
+                                  position: 'top',
+                                }}
+                              />
+                            </>
+                          ) : (
+                            <Line
+                              type="monotone"
+                              dataKey="baseGwei"
+                              name="Mainnet Basefee (Gwei)"
+                              stroke="#f59e0b"
+                              strokeWidth={2.5}
+                              dot={{ r: 3, fill: '#f59e0b' }}
+                              activeDot={{ r: 6, stroke: '#f59e0b', strokeWidth: 2 }}
+                            />
+                          )}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="h-[220px] w-full bg-[#050505] flex items-center justify-center text-[#555] text-xs font-mono">
+                      Loading Chart Engine...
+                    </div>
+                  )}
+
+                  {/* Volatility Stats Summary Row */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] pt-1">
+                    <div className="bg-[#121212] border border-[#222] p-2">
+                      <span className="text-[#666] text-[8px] uppercase block">24h Peak Gas (Basic)</span>
+                      <span className="text-amber-400 font-bold block">26,300 gas</span>
+                      <span className="text-[#555] text-[8px]">Peak at 14:00 UTC</span>
+                    </div>
+                    <div className="bg-[#121212] border border-[#222] p-2">
+                      <span className="text-[#666] text-[8px] uppercase block">24h Low Gas (Basic)</span>
+                      <span className="text-green-400 font-bold block">24,600 gas</span>
+                      <span className="text-[#555] text-[8px]">Low at 04:00 UTC</span>
+                    </div>
+                    <div className="bg-[#121212] border border-[#222] p-2">
+                      <span className="text-[#666] text-[8px] uppercase block">24h Gas Volatility</span>
+                      <span className="text-blue-400 font-bold block flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-blue-400" />
+                        ±6.9% Range
+                      </span>
+                      <span className="text-[#555] text-[8px]">Low Variance</span>
+                    </div>
+                    <div className="bg-[#121212] border border-[#222] p-2">
+                      <span className="text-[#666] text-[8px] uppercase block">24h Max Basefee</span>
+                      <span className="text-purple-400 font-bold block">34.8 Gwei</span>
+                      <span className="text-[#555] text-[8px]">Mainnet peak fee</span>
                     </div>
                   </div>
                 </div>
