@@ -19,7 +19,11 @@ import {
   RefreshCw,
   Sparkles,
   Save,
-  RotateCcw
+  RotateCcw,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  ShieldAlert
 } from 'lucide-react';
 
 const STORAGE_KEY = 'eip7702_builder_form_state_v1';
@@ -29,16 +33,27 @@ const DEFAULT_STATE = {
   eoaAddress: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
   targetAddress: '0x770200000000000000000000000000000000ba7c',
   nonce: 0,
+  gasLimit: 300000,
+  maxFeePerGas: 25,
   yParity: 0,
   rVal: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
   sVal: '0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321'
 };
+
+// Validation Helper Functions
+const isValidAddress = (addr: string) => /^0x[a-fA-F0-9]{40}$/.test(addr.trim());
+const isValidHex32 = (hex: string) => /^0x[a-fA-F0-9]{64}$/.test(hex.trim());
+const isValidNonce = (n: number) => !isNaN(n) && n >= 0 && Number.isInteger(n);
+const isValidGasLimit = (g: number) => !isNaN(g) && g >= 21000;
+const isValidMaxFee = (f: number) => !isNaN(f) && f > 0;
 
 export function Eip7702Builder() {
   const [chainId, setChainId] = useState<number>(DEFAULT_STATE.chainId);
   const [eoaAddress, setEoaAddress] = useState<string>(DEFAULT_STATE.eoaAddress);
   const [targetAddress, setTargetAddress] = useState<string>(DEFAULT_STATE.targetAddress);
   const [nonce, setNonce] = useState<number>(DEFAULT_STATE.nonce);
+  const [gasLimit, setGasLimit] = useState<number>(DEFAULT_STATE.gasLimit);
+  const [maxFeePerGas, setMaxFeePerGas] = useState<number>(DEFAULT_STATE.maxFeePerGas);
 
   // Signature state
   const [yParity, setYParity] = useState<number>(DEFAULT_STATE.yParity);
@@ -48,6 +63,18 @@ export function Eip7702Builder() {
   const [copied, setCopied] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+
+  // Validation States
+  const isEoaValid = isValidAddress(eoaAddress);
+  const isTargetValid = isValidAddress(targetAddress);
+  const isNonceValid = isValidNonce(nonce);
+  const isGasValid = isValidGasLimit(gasLimit);
+  const isMaxFeeValid = isValidMaxFee(maxFeePerGas);
+  const isYParityValid = yParity === 0 || yParity === 1;
+  const isRValid = isValidHex32(rVal);
+  const isSValid = isValidHex32(sVal);
+
+  const isFormValid = isEoaValid && isTargetValid && isNonceValid && isGasValid && isMaxFeeValid && isYParityValid && isRValid && isSValid;
 
   // Computed values
   const [authHash, setAuthHash] = useState<string>('');
@@ -64,6 +91,8 @@ export function Eip7702Builder() {
           if (typeof parsed.eoaAddress === 'string') setEoaAddress(parsed.eoaAddress);
           if (typeof parsed.targetAddress === 'string') setTargetAddress(parsed.targetAddress);
           if (typeof parsed.nonce === 'number') setNonce(parsed.nonce);
+          if (typeof parsed.gasLimit === 'number') setGasLimit(parsed.gasLimit);
+          if (typeof parsed.maxFeePerGas === 'number') setMaxFeePerGas(parsed.maxFeePerGas);
           if (typeof parsed.yParity === 'number') setYParity(parsed.yParity);
           if (typeof parsed.rVal === 'string') setRVal(parsed.rVal);
           if (typeof parsed.sVal === 'string') setSVal(parsed.sVal);
@@ -86,6 +115,8 @@ export function Eip7702Builder() {
           eoaAddress,
           targetAddress,
           nonce,
+          gasLimit,
+          maxFeePerGas,
           yParity,
           rVal,
           sVal
@@ -96,21 +127,26 @@ export function Eip7702Builder() {
     } catch (e) {
       console.error('Error persisting EIP-7702 configuration to localStorage:', e);
     }
-  }, [chainId, eoaAddress, targetAddress, nonce, yParity, rVal, sVal, isLoaded]);
+  }, [chainId, eoaAddress, targetAddress, nonce, gasLimit, maxFeePerGas, yParity, rVal, sVal, isLoaded]);
 
   useEffect(() => {
     try {
-      const hash = compute7702AuthorizationHash({
-        chainId,
-        address: targetAddress,
-        nonce
-      });
-      setAuthHash(hash);
-      setCodePointer(formatEoaCodePointer(targetAddress));
+      if (isTargetValid) {
+        const hash = compute7702AuthorizationHash({
+          chainId,
+          address: targetAddress,
+          nonce: isNonceValid ? nonce : 0
+        });
+        setAuthHash(hash);
+        setCodePointer(formatEoaCodePointer(targetAddress));
+      } else {
+        setAuthHash('INVALID_TARGET_ADDRESS');
+        setCodePointer('0xef0100' + '00'.repeat(20));
+      }
     } catch (e) {
       console.error(e);
     }
-  }, [chainId, targetAddress, nonce]);
+  }, [chainId, targetAddress, nonce, isTargetValid, isNonceValid]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -130,6 +166,8 @@ export function Eip7702Builder() {
     setEoaAddress(DEFAULT_STATE.eoaAddress);
     setTargetAddress(DEFAULT_STATE.targetAddress);
     setNonce(DEFAULT_STATE.nonce);
+    setGasLimit(DEFAULT_STATE.gasLimit);
+    setMaxFeePerGas(DEFAULT_STATE.maxFeePerGas);
     setYParity(DEFAULT_STATE.yParity);
     setRVal(DEFAULT_STATE.rVal);
     setSVal(DEFAULT_STATE.sVal);
@@ -138,29 +176,29 @@ export function Eip7702Builder() {
         localStorage.removeItem(STORAGE_KEY);
       }
     } catch (e) {
-      console.error(e);
+      console.error('Error resetting EIP-7702 config:', e);
     }
   };
 
   const fullTxObject = {
     type: '0x04',
     chainId,
-    nonce,
+    nonce: isNonceValid ? nonce : 0,
     maxPriorityFeePerGas: '2000000000', // 2 gwei
-    maxFeePerGas: '25000000000', // 25 gwei
-    gasLimit: '300000',
-    to: eoaAddress,
+    maxFeePerGas: isMaxFeeValid ? (maxFeePerGas * 1e9).toString() : '25000000000',
+    gasLimit: isGasValid ? gasLimit.toString() : '300000',
+    to: isEoaValid ? eoaAddress : '0x0000000000000000000000000000000000000000',
     value: '0x0',
     data: '0x38ed1739...',
     accessList: [],
     authorizationList: [
       {
         chainId,
-        address: targetAddress,
-        nonce,
-        yParity,
-        r: rVal,
-        s: sVal
+        address: isTargetValid ? targetAddress : '0x0000000000000000000000000000000000000000',
+        nonce: isNonceValid ? nonce : 0,
+        yParity: isYParityValid ? yParity : 0,
+        r: isRValid ? rVal : '0x0',
+        s: isSValid ? sVal : '0x0'
       }
     ]
   };
@@ -178,12 +216,23 @@ export function Eip7702Builder() {
               <Save className="w-3 h-3" />
               AUTO-SAVED
             </span>
+            {isFormValid ? (
+              <span className="bg-green-500/10 text-green-400 border border-green-500/40 px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" />
+                VALID FORM
+              </span>
+            ) : (
+              <span className="bg-red-500/10 text-red-400 border border-red-500/40 px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider flex items-center gap-1">
+                <XCircle className="w-3 h-3" />
+                INVALID INPUTS
+              </span>
+            )}
           </div>
           <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-white uppercase">
             EIP-7702 TRANSACTION BUILDER
           </h2>
           <p className="mt-2 text-sm text-[#888] max-w-2xl leading-relaxed">
-            Construct EIP-7702 signed authorization lists. Allows EOAs to temporarily adopt smart contract capabilities during transaction execution without contract deployment. Configuration is automatically persisted to local storage.
+            Construct EIP-7702 signed authorization lists with real-time visual input validation. Allows EOAs to temporarily adopt smart contract capabilities during transaction execution without contract deployment.
           </p>
         </div>
 
@@ -203,11 +252,11 @@ export function Eip7702Builder() {
         </div>
       </div>
 
-      {/* Auto-save Status Indicator Bar */}
+      {/* Auto-save & Validation Status Indicator Bar */}
       <div className="bg-[#0a0a0a] border border-[#222] px-4 py-2 flex items-center justify-between font-mono text-[11px] text-[#666] uppercase tracking-wider">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-500"></span>
-          <span>LOCALSTORAGE PERSISTENCE ACTIVE</span>
+          <span className={`w-2 h-2 rounded-full ${isFormValid ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></span>
+          <span>{isFormValid ? 'ALL FORM INPUTS VALIDATED' : 'ATTENTION: FIX INVALID INPUT HIGHLIGHTED BELOW'}</span>
         </div>
         <div>
           {lastSavedAt ? `LAST UPDATED: ${lastSavedAt}` : 'READY'}
@@ -222,7 +271,18 @@ export function Eip7702Builder() {
               <h3 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-white flex items-center gap-2">
                 <Key className="w-4 h-4 text-white" /> 01. AUTHORIZATION PARAMETERS
               </h3>
-              <span className="text-[10px] font-mono text-[#555]">TYPE 0x04</span>
+              <div className="flex items-center gap-2">
+                {isFormValid ? (
+                  <span className="text-[10px] font-mono text-green-400 bg-green-950/40 border border-green-500/30 px-2 py-0.5 uppercase tracking-wider flex items-center gap-1 font-bold">
+                    <CheckCircle2 className="w-3 h-3 text-green-400" /> READY
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono text-red-400 bg-red-950/40 border border-red-500/30 px-2 py-0.5 uppercase tracking-wider flex items-center gap-1 font-bold">
+                    <ShieldAlert className="w-3 h-3 text-red-400" /> CORRECTION REQ.
+                  </span>
+                )}
+                <span className="text-[10px] font-mono text-[#555]">TYPE 0x04</span>
+              </div>
             </div>
 
             {/* Network Chain ID */}
@@ -230,17 +290,25 @@ export function Eip7702Builder() {
               <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666] mb-1.5">
                 TARGET CHAIN ID (0 = AGNOSTIC)
               </label>
-              <select
-                value={chainId}
-                onChange={(e) => setChainId(Number(e.target.value))}
-                className="w-full px-3 py-2.5 bg-[#111] border border-[#222] text-sm font-mono text-white focus:outline-none focus:border-white transition-all"
-              >
-                <option value={8453}>Base Mainnet (Chain ID 8453)</option>
-                <option value={84532}>Base Sepolia Testnet (Chain ID 84532)</option>
-                <option value={1}>Ethereum Mainnet (Chain ID 1)</option>
-                <option value={17000}>Holesky Testnet (Chain ID 17000)</option>
-                <option value={0}>Chain Agnostic (Chain ID 0 - Multi-chain)</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={chainId}
+                  onChange={(e) => setChainId(Number(e.target.value))}
+                  className="w-full pl-3 pr-10 py-2.5 bg-[#111] border border-green-500/80 text-sm font-mono text-white focus:outline-none focus:border-green-400 transition-all"
+                >
+                  <option value={8453}>Base Mainnet (Chain ID 8453)</option>
+                  <option value={84532}>Base Sepolia Testnet (Chain ID 84532)</option>
+                  <option value={1}>Ethereum Mainnet (Chain ID 1)</option>
+                  <option value={17000}>Holesky Testnet (Chain ID 17000)</option>
+                  <option value={0}>Chain Agnostic (Chain ID 0 - Multi-chain)</option>
+                </select>
+                <div className="absolute right-3 top-3 pointer-events-none">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                </div>
+              </div>
+              <p className="mt-1 text-[10px] font-mono text-green-500 flex items-center gap-1">
+                <Check className="w-3 h-3" /> Valid EVM chain ID selected
+              </p>
             </div>
 
             {/* EOA Address */}
@@ -248,13 +316,35 @@ export function Eip7702Builder() {
               <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666] mb-1.5">
                 SIGNER EOA ADDRESS
               </label>
-              <input
-                type="text"
-                value={eoaAddress}
-                onChange={(e) => setEoaAddress(e.target.value)}
-                placeholder="0x..."
-                className="w-full px-3 py-2.5 bg-[#111] border border-[#222] text-sm font-mono text-white focus:outline-none focus:border-white transition-all"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={eoaAddress}
+                  onChange={(e) => setEoaAddress(e.target.value)}
+                  placeholder="0x..."
+                  className={`w-full pl-3 pr-10 py-2.5 bg-[#111] border text-sm font-mono text-white focus:outline-none transition-all ${
+                    isEoaValid
+                      ? 'border-green-500/80 focus:border-green-400'
+                      : 'border-red-500 text-red-200 bg-red-950/20 focus:border-red-400'
+                  }`}
+                />
+                <div className="absolute right-3 top-3 pointer-events-none">
+                  {isEoaValid ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-red-500" />
+                  )}
+                </div>
+              </div>
+              {isEoaValid ? (
+                <p className="mt-1 text-[10px] font-mono text-green-500 flex items-center gap-1">
+                  <Check className="w-3 h-3" /> Valid EVM 20-byte address format
+                </p>
+              ) : (
+                <p className="mt-1 text-[10px] font-mono text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> Invalid address: Must start with 0x and contain exactly 40 hex characters
+                </p>
+              )}
             </div>
 
             {/* Target Code Address */}
@@ -262,27 +352,102 @@ export function Eip7702Builder() {
               <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666] mb-1.5">
                 DELEGATION CODE TARGET (SMART ACCOUNT / BATCHER)
               </label>
-              <input
-                type="text"
-                value={targetAddress}
-                onChange={(e) => setTargetAddress(e.target.value)}
-                placeholder="0x..."
-                className="w-full px-3 py-2.5 bg-[#111] border border-[#222] text-sm font-mono text-white focus:outline-none focus:border-white transition-all"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={targetAddress}
+                  onChange={(e) => setTargetAddress(e.target.value)}
+                  placeholder="0x..."
+                  className={`w-full pl-3 pr-10 py-2.5 bg-[#111] border text-sm font-mono text-white focus:outline-none transition-all ${
+                    isTargetValid
+                      ? 'border-green-500/80 focus:border-green-400'
+                      : 'border-red-500 text-red-200 bg-red-950/20 focus:border-red-400'
+                  }`}
+                />
+                <div className="absolute right-3 top-3 pointer-events-none">
+                  {isTargetValid ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-red-500" />
+                  )}
+                </div>
+              </div>
+              {isTargetValid ? (
+                <p className="mt-1 text-[10px] font-mono text-green-500 flex items-center gap-1">
+                  <Check className="w-3 h-3" /> Valid EVM smart contract target address
+                </p>
+              ) : (
+                <p className="mt-1 text-[10px] font-mono text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> Invalid target address: Must start with 0x and contain exactly 40 hex characters
+                </p>
+              )}
             </div>
 
-            {/* EOA Nonce */}
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666] mb-1.5">
-                EOA NONCE (MUST MATCH CURRENT STATE NONCE)
-              </label>
-              <input
-                type="number"
-                value={nonce}
-                onChange={(e) => setNonce(Number(e.target.value))}
-                min={0}
-                className="w-full px-3 py-2.5 bg-[#111] border border-[#222] text-sm font-mono text-white focus:outline-none focus:border-white transition-all"
-              />
+            {/* Nonce & Gas Limit Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* EOA Nonce */}
+              <div>
+                <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666] mb-1.5">
+                  EOA NONCE
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={nonce}
+                    onChange={(e) => setNonce(Number(e.target.value))}
+                    min={0}
+                    className={`w-full pl-3 pr-8 py-2.5 bg-[#111] border text-sm font-mono text-white focus:outline-none transition-all ${
+                      isNonceValid
+                        ? 'border-green-500/80 focus:border-green-400'
+                        : 'border-red-500 text-red-200 bg-red-950/20 focus:border-red-400'
+                    }`}
+                  />
+                  <div className="absolute right-2.5 top-3 pointer-events-none">
+                    {isNonceValid ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5 text-red-500" />
+                    )}
+                  </div>
+                </div>
+                {isNonceValid ? (
+                  <p className="mt-1 text-[10px] font-mono text-green-500">✓ Nonce ≥ 0</p>
+                ) : (
+                  <p className="mt-1 text-[10px] font-mono text-red-400">✗ Integer ≥ 0 required</p>
+                )}
+              </div>
+
+              {/* Gas Limit */}
+              <div>
+                <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666] mb-1.5">
+                  GAS LIMIT
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={gasLimit}
+                    onChange={(e) => setGasLimit(Number(e.target.value))}
+                    min={21000}
+                    className={`w-full pl-3 pr-8 py-2.5 bg-[#111] border text-sm font-mono text-white focus:outline-none transition-all ${
+                      isGasValid
+                        ? 'border-green-500/80 focus:border-green-400'
+                        : 'border-red-500 text-red-200 bg-red-950/20 focus:border-red-400'
+                    }`}
+                  />
+                  <div className="absolute right-2.5 top-3 pointer-events-none">
+                    {isGasValid ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5 text-red-500" />
+                    )}
+                  </div>
+                </div>
+                {isGasValid ? (
+                  <p className="mt-1 text-[10px] font-mono text-green-500">✓ Gas limit ≥ 21,000</p>
+                ) : (
+                  <p className="mt-1 text-[10px] font-mono text-red-400">✗ Minimum 21,000 gas required</p>
+                )}
+              </div>
             </div>
 
             {/* Signature Parity & Values */}
@@ -291,29 +456,60 @@ export function Eip7702Builder() {
                 <span className="text-[10px] font-mono uppercase tracking-widest text-[#888]">
                   SECP256K1 SIGNATURE TUPLE (YPARITY, R, S)
                 </span>
-                <span className="text-[10px] font-mono bg-white text-black px-2 py-0.5 font-bold uppercase tracking-wider">
-                  VALIDATED
-                </span>
+                {isRValid && isSValid && isYParityValid ? (
+                  <span className="text-[10px] font-mono bg-green-500/20 text-green-400 border border-green-500/40 px-2 py-0.5 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> VALID SIG
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono bg-red-500/20 text-red-400 border border-red-500/40 px-2 py-0.5 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <XCircle className="w-3 h-3" /> INVALID SIG
+                  </span>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <span className="block text-[10px] font-mono text-[#555] mb-1">YPARITY</span>
-                  <input
-                    type="number"
-                    value={yParity}
-                    onChange={(e) => setYParity(Number(e.target.value))}
-                    className="w-full px-2.5 py-2 bg-[#111] border border-[#222] text-xs font-mono text-white"
-                  />
+                  <span className="block text-[10px] font-mono text-[#555] mb-1">YPARITY (0/1)</span>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={yParity}
+                      onChange={(e) => setYParity(Number(e.target.value))}
+                      min={0}
+                      max={1}
+                      className={`w-full px-2.5 py-2 bg-[#111] border text-xs font-mono text-white focus:outline-none ${
+                        isYParityValid ? 'border-green-500/80' : 'border-red-500 text-red-200'
+                      }`}
+                    />
+                  </div>
                 </div>
                 <div className="col-span-2">
-                  <span className="block text-[10px] font-mono text-[#555] mb-1">R VALUE</span>
+                  <span className="block text-[10px] font-mono text-[#555] mb-1">R VALUE (32 BYTES)</span>
                   <input
                     type="text"
-                    value={rVal.slice(0, 20) + '...'}
-                    readOnly
-                    className="w-full px-2.5 py-2 bg-[#111] border border-[#222] text-xs font-mono text-[#777]"
+                    value={rVal}
+                    onChange={(e) => setRVal(e.target.value)}
+                    className={`w-full px-2.5 py-2 bg-[#111] border text-xs font-mono text-white focus:outline-none ${
+                      isRValid ? 'border-green-500/80' : 'border-red-500 text-red-200'
+                    }`}
                   />
+                  {!isRValid && (
+                    <p className="mt-1 text-[9px] font-mono text-red-400">Must be 0x + 64 hex characters</p>
+                  )}
                 </div>
+              </div>
+              <div>
+                <span className="block text-[10px] font-mono text-[#555] mb-1">S VALUE (32 BYTES)</span>
+                <input
+                  type="text"
+                  value={sVal}
+                  onChange={(e) => setSVal(e.target.value)}
+                  className={`w-full px-2.5 py-2 bg-[#111] border text-xs font-mono text-white focus:outline-none ${
+                    isSValid ? 'border-green-500/80' : 'border-red-500 text-red-200'
+                  }`}
+                />
+                {!isSValid && (
+                  <p className="mt-1 text-[9px] font-mono text-red-400">Must be 0x + 64 hex characters</p>
+                )}
               </div>
             </div>
           </div>
@@ -322,24 +518,29 @@ export function Eip7702Builder() {
         {/* Computations & Inspector */}
         <div className="lg:col-span-6 space-y-6">
           {/* Authorization Magic Hash Box */}
-          <div className="bg-[#080808] border border-[#222] p-6 space-y-3">
+          <div className={`bg-[#080808] border p-6 space-y-3 transition-all ${
+            isTargetValid ? 'border-[#222]' : 'border-red-500/50 bg-red-950/10'
+          }`}>
             <div className="flex items-center justify-between border-b border-[#1a1a1a] pb-3">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-white" />
+                <ShieldCheck className={`w-4 h-4 ${isTargetValid ? 'text-white' : 'text-red-400'}`} />
                 <h4 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-white">
                   02. AUTHORIZATION HASH
                 </h4>
               </div>
               <button
                 onClick={() => copyToClipboard(authHash, 'authHash')}
-                className="text-xs font-mono text-[#888] hover:text-white uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                disabled={!isTargetValid}
+                className="text-xs font-mono text-[#888] hover:text-white disabled:opacity-30 uppercase tracking-wider flex items-center gap-1.5 transition-all"
               >
                 {copied === 'authHash' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied === 'authHash' ? 'COPIED' : 'COPY HASH'}
               </button>
             </div>
 
-            <div className="p-3 bg-[#111] border border-[#222] font-mono text-xs text-white break-all">
+            <div className={`p-3 bg-[#111] border font-mono text-xs break-all ${
+              isTargetValid ? 'border-[#222] text-white' : 'border-red-500/50 text-red-400'
+            }`}>
               {authHash}
             </div>
 
@@ -349,21 +550,26 @@ export function Eip7702Builder() {
           </div>
 
           {/* Code Pointer Injected Bytecode */}
-          <div className="bg-[#080808] border border-[#222] p-6 space-y-3">
+          <div className={`bg-[#080808] border p-6 space-y-3 transition-all ${
+            isTargetValid ? 'border-[#222]' : 'border-red-500/50 bg-red-950/10'
+          }`}>
             <div className="flex items-center justify-between border-b border-[#1a1a1a] pb-3">
               <h4 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-white flex items-center gap-2">
-                <Code2 className="w-4 h-4 text-white" /> 03. EOA CODE POINTER (23 BYTES)
+                <Code2 className={`w-4 h-4 ${isTargetValid ? 'text-white' : 'text-red-400'}`} /> 03. EOA CODE POINTER (23 BYTES)
               </h4>
               <button
                 onClick={() => copyToClipboard(codePointer, 'codePointer')}
-                className="text-xs font-mono text-[#888] hover:text-white uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                disabled={!isTargetValid}
+                className="text-xs font-mono text-[#888] hover:text-white disabled:opacity-30 uppercase tracking-wider flex items-center gap-1.5 transition-all"
               >
                 {copied === 'codePointer' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied === 'codePointer' ? 'COPIED' : 'COPY'}
               </button>
             </div>
 
-            <div className="p-3 bg-[#111] border border-[#222] font-mono text-xs text-white break-all">
+            <div className={`p-3 bg-[#111] border font-mono text-xs break-all ${
+              isTargetValid ? 'border-[#222] text-white' : 'border-red-500/50 text-red-400'
+            }`}>
               <span className="text-green-500 font-bold">0xef0100</span>
               {codePointer.slice(8)}
             </div>
@@ -379,7 +585,9 @@ export function Eip7702Builder() {
           </div>
 
           {/* Full JSON Payload */}
-          <div className="bg-[#080808] border border-[#222] p-6 space-y-3">
+          <div className={`bg-[#080808] border p-6 space-y-3 transition-all ${
+            isFormValid ? 'border-[#222]' : 'border-red-500/30'
+          }`}>
             <div className="flex items-center justify-between border-b border-[#1a1a1a] pb-3">
               <h4 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-white flex items-center gap-2">
                 <Terminal className="w-4 h-4 text-white" /> 04. TYPE-4 TX PAYLOAD
@@ -402,3 +610,4 @@ export function Eip7702Builder() {
     </div>
   );
 }
+
