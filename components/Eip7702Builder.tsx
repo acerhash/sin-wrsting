@@ -33,7 +33,9 @@ import {
   Clock,
   Undo2,
   Trash2,
-  Bookmark
+  Bookmark,
+  X,
+  Hammer
 } from 'lucide-react';
 
 const STORAGE_KEY = 'eip7702_builder_form_state_v1';
@@ -63,6 +65,18 @@ const isValidHex32 = (hex: string) => /^0x[a-fA-F0-9]{64}$/.test(hex.trim());
 const isValidNonce = (n: number) => !isNaN(n) && n >= 0 && Number.isInteger(n);
 const isValidGasLimit = (g: number) => !isNaN(g) && g >= 21000;
 const isValidMaxFee = (f: number) => !isNaN(f) && f > 0;
+
+const getChainName = (id: number) => {
+  switch (id) {
+    case 84532: return 'Base Sepolia Testnet';
+    case 8453: return 'Base Mainnet';
+    case 1: return 'Ethereum Mainnet';
+    case 11155111: return 'Sepolia Testnet';
+    case 42161: return 'Arbitrum One';
+    case 10: return 'OP Mainnet';
+    default: return `Chain ${id}`;
+  }
+};
 
 export interface GasEstimateResult {
   hexResult: string;
@@ -175,6 +189,7 @@ export function Eip7702Builder() {
 
   const [copied, setCopied] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState<boolean>(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
 
   // Gas Estimation States
   const [isEstimatingGas, setIsEstimatingGas] = useState<boolean>(false);
@@ -381,6 +396,16 @@ export function Eip7702Builder() {
     });
   };
 
+  const handleOpenConfirmModal = () => {
+    if (!isFormValid) return;
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleConfirmAndBuild = () => {
+    handleSaveToHistory();
+    setIsConfirmModalOpen(false);
+  };
+
   const handleRevertToHistory = (item: Eip7702HistoryItem) => {
     setChainId(item.config.chainId);
     setEoaAddress(item.config.eoaAddress);
@@ -500,11 +525,11 @@ export function Eip7702Builder() {
 
         <div className="flex flex-col sm:flex-row gap-3">
           <button
-            onClick={handleSaveToHistory}
+            onClick={handleOpenConfirmModal}
             disabled={!isFormValid}
-            className="bg-green-500 text-black hover:bg-green-400 disabled:opacity-40 px-4 py-2 text-xs font-mono font-bold uppercase tracking-widest flex items-center justify-center gap-2 border border-green-500 transition-all cursor-pointer"
+            className="bg-green-500 text-black hover:bg-green-400 disabled:opacity-40 px-4 py-2 text-xs font-mono font-bold uppercase tracking-widest flex items-center justify-center gap-2 border border-green-500 transition-all cursor-pointer shadow-[0_0_15px_rgba(34,197,94,0.3)]"
           >
-            <Bookmark className="w-3.5 h-3.5" /> SAVE SNAPSHOT
+            <Hammer className="w-3.5 h-3.5" /> BUILD TRANSACTION
           </button>
           <button
             onClick={handleRandomizeSig}
@@ -1041,11 +1066,11 @@ export function Eip7702Builder() {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handleSaveToHistory}
+              onClick={handleOpenConfirmModal}
               disabled={!isFormValid}
-              className="px-3 py-1.5 bg-green-500 hover:bg-green-400 disabled:opacity-40 text-black text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 bg-green-500 hover:bg-green-400 disabled:opacity-40 text-black text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_10px_rgba(34,197,94,0.3)]"
             >
-              <Bookmark className="w-3.5 h-3.5" /> SAVE SNAPSHOT
+              <Hammer className="w-3.5 h-3.5" /> BUILD TRANSACTION
             </button>
             {history.length > 0 && (
               <button
@@ -1148,6 +1173,111 @@ export function Eip7702Builder() {
           </div>
         )}
       </div>
+
+      {/* Modal Confirmation Dialog */}
+      {isConfirmModalOpen && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0a0a0a] border border-[#333] max-w-xl w-full p-6 space-y-5 font-mono shadow-[0_0_50px_rgba(0,0,0,0.9)] animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between border-b border-[#222] pb-4">
+              <div className="flex items-center gap-2.5">
+                <Hammer className="w-5 h-5 text-green-400" />
+                <div>
+                  <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-white">
+                    CONFIRM EIP-7702 TRANSACTION BUILD
+                  </h3>
+                  <p className="text-[11px] text-[#888] mt-0.5">
+                    Review authorization payload parameters before approving transaction build
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="text-[#666] hover:text-white p-1 transition-colors cursor-pointer"
+                title="Close Modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Configuration Summary Table */}
+            <div className="space-y-2.5 text-xs">
+              <div className="bg-[#111] border border-[#222] p-3 space-y-2">
+                <div className="flex justify-between items-center text-[11px] border-b border-[#1f1f1f] pb-1.5">
+                  <span className="text-[#777]">TARGET NETWORK</span>
+                  <span className="text-white font-bold">{getChainName(chainId)} (ID: {chainId})</span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] border-b border-[#1f1f1f] pb-1.5">
+                  <span className="text-[#777]">EOA SIGNER</span>
+                  <span className="text-green-400 font-mono" title={eoaAddress}>
+                    {eoaAddress.slice(0, 10)}...{eoaAddress.slice(-8)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] border-b border-[#1f1f1f] pb-1.5">
+                  <span className="text-[#777]">TARGET DELEGATE</span>
+                  <span className="text-blue-400 font-mono" title={targetAddress}>
+                    {targetAddress.slice(0, 10)}...{targetAddress.slice(-8)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-[11px] pt-1">
+                  <div>
+                    <span className="text-[#666] block text-[9px]">NONCE</span>
+                    <span className="text-white font-bold">{nonce}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#666] block text-[9px]">GAS LIMIT</span>
+                    <span className="text-white font-bold">{gasLimit.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#666] block text-[9px]">MAX FEE (GWEI)</span>
+                    <span className="text-white font-bold">{maxFeePerGas}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Computed Hash & Pointer */}
+              <div className="bg-[#050505] border border-[#222] p-3 space-y-2 text-[10px]">
+                <div>
+                  <span className="text-[#666] text-[9px] uppercase block mb-0.5">AUTHORIZATION HASH (KECCAK-256)</span>
+                  <div className="text-green-400 font-mono break-all bg-black p-1.5 border border-[#1a1a1a]">
+                    {authHash}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[#666] text-[9px] uppercase block mb-0.5 font-mono">EOA DELEGATED CODE POINTER</span>
+                  <div className="text-blue-400 font-mono break-all bg-black p-1.5 border border-[#1a1a1a]">
+                    {codePointer}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-green-950/20 border border-green-500/30 p-2.5 text-[11px] text-green-400 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                <span>All parameters validated and ready to save to transaction history snapshot.</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#1f1f1f]">
+              <button
+                type="button"
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="px-4 py-2 bg-[#141414] hover:bg-[#222] text-[#aaa] hover:text-white border border-[#222] text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+              >
+                CANCEL
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAndBuild}
+                className="px-5 py-2 bg-green-500 hover:bg-green-400 text-black text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(34,197,94,0.4)] cursor-pointer"
+              >
+                <Hammer className="w-4 h-4" />
+                CONFIRM & BUILD
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
