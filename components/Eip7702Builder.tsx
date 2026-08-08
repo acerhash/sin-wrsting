@@ -23,7 +23,12 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  ShieldAlert
+  ShieldAlert,
+  Fuel,
+  Gauge,
+  Calculator,
+  Flame,
+  Coins
 } from 'lucide-react';
 
 const STORAGE_KEY = 'eip7702_builder_form_state_v1';
@@ -47,6 +52,66 @@ const isValidNonce = (n: number) => !isNaN(n) && n >= 0 && Number.isInteger(n);
 const isValidGasLimit = (g: number) => !isNaN(g) && g >= 21000;
 const isValidMaxFee = (f: number) => !isNaN(f) && f > 0;
 
+export interface GasEstimateResult {
+  hexResult: string;
+  gasUnits: number;
+  breakdown: {
+    baseTxGas: number;
+    eip7702AuthGas: number;
+    executionGas: number;
+  };
+  estimatedFeeEth: string;
+  estimatedFeeUsd: string;
+  timestamp: string;
+  rpcLatencyMs: number;
+}
+
+/**
+ * Mock RPC call simulating eth_estimateGas for EIP-7702 Type-4 transaction
+ */
+const mockEstimateGasRpc = async (
+  target: string,
+  maxFeePerGasGwei: number
+): Promise<GasEstimateResult> => {
+  const startTime = performance.now();
+  // Simulate network RPC round-trip delay (400 - 700 ms)
+  const delayMs = Math.floor(Math.random() * 300) + 400;
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+  const baseTxGas = 21000;
+  // EIP-7702 authorization list item processing cost (~25,000 gas per auth entry)
+  const eip7702AuthGas = 25000;
+  
+  // Execution gas depending on target contract address complexity
+  const targetSeed = parseInt(target.slice(-4) || '7702', 16) % 12000;
+  const executionGas = 28400 + targetSeed;
+
+  const totalGas = baseTxGas + eip7702AuthGas + executionGas;
+  const hexResult = '0x' + totalGas.toString(16);
+
+  const totalGasFeeWei = BigInt(totalGas) * BigInt(Math.round(maxFeePerGasGwei * 1e9));
+  const feeEthNum = Number(totalGasFeeWei) / 1e18;
+  const feeEth = feeEthNum.toFixed(6);
+  const feeUsd = (feeEthNum * 2800).toFixed(2); // Assume $2,800 / ETH
+
+  const endTime = performance.now();
+  const latency = Math.round(endTime - startTime);
+
+  return {
+    hexResult,
+    gasUnits: totalGas,
+    breakdown: {
+      baseTxGas,
+      eip7702AuthGas,
+      executionGas
+    },
+    estimatedFeeEth: feeEth,
+    estimatedFeeUsd: feeUsd,
+    timestamp: new Date().toLocaleTimeString(),
+    rpcLatencyMs: latency
+  };
+};
+
 export function Eip7702Builder() {
   const [chainId, setChainId] = useState<number>(DEFAULT_STATE.chainId);
   const [eoaAddress, setEoaAddress] = useState<string>(DEFAULT_STATE.eoaAddress);
@@ -63,6 +128,10 @@ export function Eip7702Builder() {
   const [copied, setCopied] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+
+  // Gas Estimation States
+  const [isEstimatingGas, setIsEstimatingGas] = useState<boolean>(false);
+  const [gasEstimateResult, setGasEstimateResult] = useState<GasEstimateResult | null>(null);
 
   // Validation States
   const isEoaValid = isValidAddress(eoaAddress);
@@ -171,12 +240,31 @@ export function Eip7702Builder() {
     setYParity(DEFAULT_STATE.yParity);
     setRVal(DEFAULT_STATE.rVal);
     setSVal(DEFAULT_STATE.sVal);
+    setGasEstimateResult(null);
     try {
       if (typeof window !== 'undefined') {
         localStorage.removeItem(STORAGE_KEY);
       }
     } catch (e) {
       console.error('Error resetting EIP-7702 config:', e);
+    }
+  };
+
+  const handleEstimateGas = async () => {
+    if (isEstimatingGas) return;
+    setIsEstimatingGas(true);
+    try {
+      const res = await mockEstimateGasRpc(
+        isTargetValid ? targetAddress : DEFAULT_STATE.targetAddress,
+        isMaxFeeValid ? maxFeePerGas : DEFAULT_STATE.maxFeePerGas
+      );
+      setGasEstimateResult(res);
+      // Automatically apply estimated gas to gasLimit state
+      setGasLimit(res.gasUnits);
+    } catch (err) {
+      console.error('Failed to estimate gas via mock RPC:', err);
+    } finally {
+      setIsEstimatingGas(false);
     }
   };
 
@@ -419,9 +507,24 @@ export function Eip7702Builder() {
 
               {/* Gas Limit */}
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666] mb-1.5">
-                  GAS LIMIT
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666]">
+                    GAS LIMIT
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleEstimateGas}
+                    disabled={isEstimatingGas || !isTargetValid}
+                    className="text-[10px] font-mono font-bold uppercase tracking-wider text-green-400 hover:text-green-300 disabled:opacity-40 flex items-center gap-1 bg-green-950/40 border border-green-500/30 px-2 py-0.5 hover:bg-green-900/40 transition-all cursor-pointer"
+                  >
+                    {isEstimatingGas ? (
+                      <RefreshCw className="w-3 h-3 animate-spin text-green-400" />
+                    ) : (
+                      <Fuel className="w-3 h-3 text-green-400" />
+                    )}
+                    {isEstimatingGas ? 'ESTIMATING...' : 'ESTIMATE GAS'}
+                  </button>
+                </div>
                 <div className="relative">
                   <input
                     type="number"
@@ -448,6 +551,100 @@ export function Eip7702Builder() {
                   <p className="mt-1 text-[10px] font-mono text-red-400">✗ Minimum 21,000 gas required</p>
                 )}
               </div>
+            </div>
+
+            {/* Mock RPC Gas Estimation Panel */}
+            <div className="p-4 bg-[#0d0d0d] border border-[#222] space-y-3 font-mono">
+              <div className="flex items-center justify-between border-b border-[#222] pb-2">
+                <div className="flex items-center gap-2">
+                  <Gauge className="w-4 h-4 text-green-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-white">
+                    RPC GAS ESTIMATOR (eth_estimateGas)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleEstimateGas}
+                  disabled={isEstimatingGas || !isTargetValid}
+                  className="px-3 py-1 bg-green-500 text-black hover:bg-green-400 font-bold text-xs uppercase tracking-wider disabled:opacity-30 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isEstimatingGas ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Calculator className="w-3.5 h-3.5" />
+                  )}
+                  {isEstimatingGas ? 'RUNNING RPC...' : 'ESTIMATE VIA RPC'}
+                </button>
+              </div>
+
+              {isEstimatingGas && (
+                <div className="p-3 bg-[#111] border border-green-500/30 flex items-center gap-3 text-xs text-green-400 animate-pulse">
+                  <RefreshCw className="w-4 h-4 animate-spin text-green-400" />
+                  <span>EXECUTING MOCK JSON-RPC CALL: <code className="text-white">eth_estimateGas(EIP7702Tx)</code>...</span>
+                </div>
+              )}
+
+              {gasEstimateResult && !isEstimatingGas && (
+                <div className="space-y-3 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className="p-2 bg-[#111] border border-[#222]">
+                      <span className="block text-[#666] text-[9px] uppercase tracking-wider">RPC RETURN (HEX)</span>
+                      <span className="text-green-400 font-bold break-all">{gasEstimateResult.hexResult}</span>
+                    </div>
+                    <div className="p-2 bg-[#111] border border-[#222]">
+                      <span className="block text-[#666] text-[9px] uppercase tracking-wider">ESTIMATED GAS</span>
+                      <span className="text-white font-bold">{gasEstimateResult.gasUnits.toLocaleString()} units</span>
+                    </div>
+                    <div className="p-2 bg-[#111] border border-[#222]">
+                      <span className="block text-[#666] text-[9px] uppercase tracking-wider">ESTIMATED FEE (ETH)</span>
+                      <span className="text-white font-bold">{gasEstimateResult.estimatedFeeEth} ETH</span>
+                    </div>
+                    <div className="p-2 bg-[#111] border border-[#222]">
+                      <span className="block text-[#666] text-[9px] uppercase tracking-wider">ESTIMATED FEE (USD)</span>
+                      <span className="text-green-400 font-bold">${gasEstimateResult.estimatedFeeUsd}</span>
+                    </div>
+                  </div>
+
+                  {/* Gas Breakdown */}
+                  <div className="p-2.5 bg-[#111] border border-[#222] space-y-1.5 text-[10px] text-[#aaa]">
+                    <div className="flex justify-between items-center text-[#888] font-bold border-b border-[#222] pb-1">
+                      <span>GAS COMPONENT BREAKDOWN</span>
+                      <span className="text-[9px] text-[#555]">LATENCY: {gasEstimateResult.rpcLatencyMs}ms</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="flex items-center gap-1.5">
+                        <Flame className="w-3 h-3 text-orange-400" /> Base EVM Transaction Fee
+                      </span>
+                      <span className="font-mono text-white">{gasEstimateResult.breakdown.baseTxGas.toLocaleString()} gas</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="flex items-center gap-1.5">
+                        <Fuel className="w-3 h-3 text-green-400" /> EIP-7702 Set-Code Authorization Overhead
+                      </span>
+                      <span className="font-mono text-white">{gasEstimateResult.breakdown.eip7702AuthGas.toLocaleString()} gas</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="flex items-center gap-1.5">
+                        <Coins className="w-3 h-3 text-blue-400" /> Target Contract Execution & Validation
+                      </span>
+                      <span className="font-mono text-white">{gasEstimateResult.breakdown.executionGas.toLocaleString()} gas</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-[#777]">
+                    <span className="flex items-center gap-1 text-green-400">
+                      <CheckCircle2 className="w-3 h-3" /> Auto-applied to transaction gas limit input above
+                    </span>
+                    <span>TIMESTAMP: {gasEstimateResult.timestamp}</span>
+                  </div>
+                </div>
+              )}
+
+              {!gasEstimateResult && !isEstimatingGas && (
+                <p className="text-[11px] text-[#666]">
+                  Click <strong className="text-white">ESTIMATE VIA RPC</strong> to run mock <code className="text-white">eth_estimateGas</code> calculation on current EIP-7702 delegation payload.
+                </p>
+              )}
             </div>
 
             {/* Signature Parity & Values */}
