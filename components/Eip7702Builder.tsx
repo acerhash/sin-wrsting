@@ -39,6 +39,12 @@ import {
 const STORAGE_KEY = 'eip7702_builder_form_state_v1';
 const HISTORY_STORAGE_KEY = 'eip7702_builder_history_v1';
 
+const GAS_LIMIT_PRESETS = [
+  { label: 'Standard', value: 25000, desc: 'Basic EIP-7702 SetCode Delegation', icon: Fuel },
+  { label: 'Fast', value: 50000, desc: 'Batch Call / Session Key Execution', icon: Zap },
+  { label: 'Ultra', value: 120000, desc: 'Paymaster / Multi-sig Smart Account', icon: Flame },
+];
+
 const DEFAULT_STATE = {
   chainId: 84532,
   eoaAddress: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
@@ -724,6 +730,35 @@ export function Eip7702Builder() {
                     )}
                   </div>
                 </div>
+
+                {/* Gas Limit Presets */}
+                <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[9px] font-mono uppercase tracking-wider text-[#666] mr-0.5">PRESETS:</span>
+                  {GAS_LIMIT_PRESETS.map((preset) => {
+                    const isSelected = gasLimit === preset.value;
+                    const Icon = preset.icon;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setGasLimit(preset.value)}
+                        className={`px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-wider transition-all flex items-center gap-1 border cursor-pointer ${
+                          isSelected
+                            ? 'bg-green-500 text-black border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
+                            : 'bg-[#141414] text-[#aaa] hover:text-white border-[#222] hover:border-[#444]'
+                        }`}
+                        title={`${preset.desc} (${preset.value.toLocaleString()} gas)`}
+                      >
+                        <Icon className={`w-3 h-3 ${isSelected ? 'text-black' : 'text-green-400'}`} />
+                        <span>{preset.label}</span>
+                        <span className={`text-[9px] font-normal opacity-80 ${isSelected ? 'text-black' : 'text-[#777]'}`}>
+                          ({preset.value >= 1000 ? `${preset.value / 1000}k` : preset.value})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 {isGasValid ? (
                   <p className="mt-1 text-[10px] font-mono text-green-500">✓ Gas limit ≥ 21,000</p>
                 ) : (
