@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Eip7702Authorization, 
   compute7702AuthorizationHash, 
@@ -137,6 +137,23 @@ const mockEstimateGasRpc = async (
   };
 };
 
+const createInitialHistoryItem = (): Eip7702HistoryItem => {
+  const defaultHash = compute7702AuthorizationHash({
+    chainId: DEFAULT_STATE.chainId,
+    address: DEFAULT_STATE.targetAddress,
+    nonce: DEFAULT_STATE.nonce
+  });
+  const defaultPointer = formatEoaCodePointer(DEFAULT_STATE.targetAddress);
+  return {
+    id: 'init-0',
+    timestamp: new Date().toISOString(),
+    formattedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    config: { ...DEFAULT_STATE },
+    authHash: defaultHash,
+    codePointer: defaultPointer
+  };
+};
+
 export function Eip7702Builder() {
   const [chainId, setChainId] = useState<number>(DEFAULT_STATE.chainId);
   const [eoaAddress, setEoaAddress] = useState<string>(DEFAULT_STATE.eoaAddress);
@@ -151,8 +168,7 @@ export function Eip7702Builder() {
   const [sVal, setSVal] = useState<string>(DEFAULT_STATE.sVal);
 
   const [copied, setCopied] = useState<string | null>(null);
-  const [isLoaded, setIsLoaded] = useState<boolean>(false);
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
 
   // Gas Estimation States
   const [isEstimatingGas, setIsEstimatingGas] = useState<boolean>(false);
@@ -174,79 +190,70 @@ export function Eip7702Builder() {
 
   const isFormValid = isEoaValid && isTargetValid && isNonceValid && isGasValid && isMaxFeeValid && isYParityValid && isRValid && isSValid;
 
-  // Computed values
-  const [authHash, setAuthHash] = useState<string>('');
-  const [codePointer, setCodePointer] = useState<string>('');
-
-  // Auto-load form state & history on mount
-  useEffect(() => {
+  // Derived computed values
+  const authHash = useMemo(() => {
+    if (!isTargetValid) return 'INVALID_TARGET_ADDRESS';
     try {
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (typeof parsed.chainId === 'number') setChainId(parsed.chainId);
-          if (typeof parsed.eoaAddress === 'string') setEoaAddress(parsed.eoaAddress);
-          if (typeof parsed.targetAddress === 'string') setTargetAddress(parsed.targetAddress);
-          if (typeof parsed.nonce === 'number') setNonce(parsed.nonce);
-          if (typeof parsed.gasLimit === 'number') setGasLimit(parsed.gasLimit);
-          if (typeof parsed.maxFeePerGas === 'number') setMaxFeePerGas(parsed.maxFeePerGas);
-          if (typeof parsed.yParity === 'number') setYParity(parsed.yParity);
-          if (typeof parsed.rVal === 'string') setRVal(parsed.rVal);
-          if (typeof parsed.sVal === 'string') setSVal(parsed.sVal);
-        }
-
-        const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
-        if (savedHistory) {
-          const parsedHistory = JSON.parse(savedHistory);
-          if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
-            setHistory(parsedHistory.slice(0, 5));
-          } else {
-            // Pre-seed with initial state if empty history
-            const defaultHash = compute7702AuthorizationHash({
-              chainId: DEFAULT_STATE.chainId,
-              address: DEFAULT_STATE.targetAddress,
-              nonce: DEFAULT_STATE.nonce
-            });
-            const defaultPointer = formatEoaCodePointer(DEFAULT_STATE.targetAddress);
-            const initialBuild: Eip7702HistoryItem = {
-              id: 'init-0',
-              timestamp: new Date().toISOString(),
-              formattedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              config: { ...DEFAULT_STATE },
-              authHash: defaultHash,
-              codePointer: defaultPointer
-            };
-            setHistory([initialBuild]);
-          }
-        } else {
-          const defaultHash = compute7702AuthorizationHash({
-            chainId: DEFAULT_STATE.chainId,
-            address: DEFAULT_STATE.targetAddress,
-            nonce: DEFAULT_STATE.nonce
-          });
-          const defaultPointer = formatEoaCodePointer(DEFAULT_STATE.targetAddress);
-          const initialBuild: Eip7702HistoryItem = {
-            id: 'init-0',
-            timestamp: new Date().toISOString(),
-            formattedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-            config: { ...DEFAULT_STATE },
-            authHash: defaultHash,
-            codePointer: defaultPointer
-          };
-          setHistory([initialBuild]);
-        }
-      }
+      return compute7702AuthorizationHash({
+        chainId,
+        address: targetAddress,
+        nonce: isNonceValid ? nonce : 0
+      });
     } catch (e) {
-      console.error('Error loading EIP-7702 configuration from localStorage:', e);
-    } finally {
-      setIsLoaded(true);
+      return 'INVALID_TARGET_ADDRESS';
     }
+  }, [chainId, targetAddress, nonce, isTargetValid, isNonceValid]);
+
+  const codePointer = useMemo(() => {
+    if (!isTargetValid) return '0xef0100' + '00'.repeat(20);
+    try {
+      return formatEoaCodePointer(targetAddress);
+    } catch (e) {
+      return '0xef0100' + '00'.repeat(20);
+    }
+  }, [targetAddress, isTargetValid]);
+
+  // Load saved state and history on client mount
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setIsMounted(true);
+      try {
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (typeof parsed.chainId === 'number') setChainId(parsed.chainId);
+            if (typeof parsed.eoaAddress === 'string') setEoaAddress(parsed.eoaAddress);
+            if (typeof parsed.targetAddress === 'string') setTargetAddress(parsed.targetAddress);
+            if (typeof parsed.nonce === 'number') setNonce(parsed.nonce);
+            if (typeof parsed.gasLimit === 'number') setGasLimit(parsed.gasLimit);
+            if (typeof parsed.maxFeePerGas === 'number') setMaxFeePerGas(parsed.maxFeePerGas);
+            if (typeof parsed.yParity === 'number') setYParity(parsed.yParity);
+            if (typeof parsed.rVal === 'string') setRVal(parsed.rVal);
+            if (typeof parsed.sVal === 'string') setSVal(parsed.sVal);
+          }
+
+          const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
+          if (savedHistory) {
+            const parsedHistory = JSON.parse(savedHistory);
+            if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
+              setHistory(parsedHistory.slice(0, 5));
+            } else {
+              setHistory([createInitialHistoryItem()]);
+            }
+          } else {
+            setHistory([createInitialHistoryItem()]);
+          }
+        }
+      } catch (e) {
+        console.error('Error loading stored EIP-7702 state:', e);
+      }
+    });
   }, []);
 
   // Auto-save state to localStorage on change
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isMounted) return;
     try {
       if (typeof window !== 'undefined') {
         const stateToSave = {
@@ -261,16 +268,15 @@ export function Eip7702Builder() {
           sVal
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-        setLastSavedAt(new Date().toLocaleTimeString());
       }
     } catch (e) {
       console.error('Error persisting EIP-7702 configuration to localStorage:', e);
     }
-  }, [chainId, eoaAddress, targetAddress, nonce, gasLimit, maxFeePerGas, yParity, rVal, sVal, isLoaded]);
+  }, [chainId, eoaAddress, targetAddress, nonce, gasLimit, maxFeePerGas, yParity, rVal, sVal, isMounted]);
 
   // Persist transaction history
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isMounted) return;
     try {
       if (typeof window !== 'undefined') {
         localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
@@ -278,26 +284,7 @@ export function Eip7702Builder() {
     } catch (e) {
       console.error('Error persisting transaction history to localStorage:', e);
     }
-  }, [history, isLoaded]);
-
-  useEffect(() => {
-    try {
-      if (isTargetValid) {
-        const hash = compute7702AuthorizationHash({
-          chainId,
-          address: targetAddress,
-          nonce: isNonceValid ? nonce : 0
-        });
-        setAuthHash(hash);
-        setCodePointer(formatEoaCodePointer(targetAddress));
-      } else {
-        setAuthHash('INVALID_TARGET_ADDRESS');
-        setCodePointer('0xef0100' + '00'.repeat(20));
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [chainId, targetAddress, nonce, isTargetValid, isNonceValid]);
+  }, [history, isMounted]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -539,7 +526,7 @@ export function Eip7702Builder() {
             <History className="w-3.5 h-3.5 text-green-400" />
             HISTORY: {history.length}/5 SAVED
           </span>
-          <span>{lastSavedAt ? `LAST UPDATED: ${lastSavedAt}` : 'READY'}</span>
+          <span>AUTO-SAVED TO STORAGE</span>
         </div>
       </div>
 

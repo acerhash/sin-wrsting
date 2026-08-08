@@ -40,7 +40,7 @@ export function BaseMiniAppValidator() {
         setSdkReadyState(true);
       });
     } catch (e) {
-      setSdkReadyState(true);
+      Promise.resolve().then(() => setSdkReadyState(true));
     }
   }, []);
 
