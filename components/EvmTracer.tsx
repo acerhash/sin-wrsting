@@ -71,49 +71,56 @@ export function EvmTracer() {
   return (
     <div className="space-y-6">
       {/* Header Controls */}
-      <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="border border-[#222] bg-[#080808] p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-400 border border-purple-500/30 mb-2">
-            <Cpu className="w-3.5 h-3.5" /> Ethereum Node EVM State Tracer
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-[#666] text-xs font-mono uppercase tracking-[0.3em]">
+              OPCODE & STATE TRACE
+            </span>
+            <span className="bg-white text-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">
+              LIVE MONITOR
+            </span>
           </div>
-          <h2 className="text-xl font-bold text-white">Interactive EIP-7702 State Execution Visualizer</h2>
-          <p className="text-slate-400 text-sm mt-1">
-            Walk through how an Ethereum / Base node executes a Type-4 transaction: Authorization verification, code pointer injection, DELEGATECALL execution, and storage settlement.
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-white uppercase">
+            EVM STATE EXECUTION TRACER
+          </h2>
+          <p className="mt-2 text-sm text-[#888] max-w-2xl leading-relaxed">
+            Trace how an Ethereum or Base node processes a Type-4 transaction: Authorization verification, code pointer injection, DELEGATECALL opcode processing, and storage state settlement.
           </p>
         </div>
 
         {/* Stepper Controls */}
-        <div className="flex items-center gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800">
+        <div className="flex items-center gap-2 bg-[#111] p-2 border border-[#222]">
           <button
             onClick={handlePrev}
             disabled={currentStepIdx === 0}
-            className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-slate-200 transition-all"
+            className="p-2 bg-[#1a1a1a] hover:bg-[#333] disabled:opacity-30 text-white transition-all border border-[#333]"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="text-xs font-mono px-3 text-slate-300">
-            Step {currentStepIdx + 1} of {steps.length}
+          <span className="text-xs font-mono font-bold uppercase tracking-wider px-3 text-[#aaa]">
+            STEP {currentStepIdx + 1} / {steps.length}
           </span>
           <button
             onClick={handleNext}
             disabled={currentStepIdx === steps.length - 1}
-            className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-slate-200 transition-all"
+            className="p-2 bg-[#1a1a1a] hover:bg-[#333] disabled:opacity-30 text-white transition-all border border-[#333]"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
           <button
             onClick={toggleAutoPlay}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-mono font-bold uppercase tracking-wider border transition-all ${
               isPlaying 
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                : 'bg-blue-600 hover:bg-blue-500 text-white'
+                ? 'bg-amber-500 text-black border-amber-500'
+                : 'bg-white text-black border-white hover:bg-[#eee]'
             }`}
           >
-            <Play className="w-3 h-3" /> {isPlaying ? 'Pause' : 'Auto Step'}
+            <Play className="w-3.5 h-3.5 fill-current" /> {isPlaying ? 'PAUSE' : 'AUTO STEP'}
           </button>
           <button
             onClick={handleReset}
-            className="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition-all"
+            className="p-2 bg-[#1a1a1a] hover:bg-[#333] text-[#888] hover:text-white transition-all border border-[#333]"
             title="Reset to Step 1"
           >
             <RotateCcw className="w-4 h-4" />
@@ -122,24 +129,26 @@ export function EvmTracer() {
       </div>
 
       {/* Progress Pipeline */}
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {steps.map((s, idx) => (
           <button
             key={s.step}
             onClick={() => setCurrentStepIdx(idx)}
-            className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden ${
+            className={`p-4 border text-left transition-all relative ${
               idx === currentStepIdx
-                ? 'bg-blue-950/60 border-blue-500/60 text-blue-200 shadow-md shadow-blue-500/10'
+                ? 'bg-white text-black border-white'
                 : idx < currentStepIdx
-                ? 'bg-slate-900/40 border-slate-800 text-slate-400 hover:bg-slate-900'
-                : 'bg-slate-950 border-slate-900 text-slate-600'
+                ? 'bg-[#111] border-[#333] text-white hover:border-[#555]'
+                : 'bg-[#080808] border-[#1f1f1f] text-[#555]'
             }`}
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-mono font-bold">0{s.step}</span>
-              {idx < currentStepIdx && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-mono font-bold tracking-widest">0{s.step}</span>
+              {idx < currentStepIdx && <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}
             </div>
-            <span className="block text-xs font-semibold truncate">{s.title.split(' ')[0]} {s.title.split(' ')[1]}</span>
+            <span className="block text-xs font-black uppercase tracking-tight truncate">
+              {s.title}
+            </span>
           </button>
         ))}
       </div>
@@ -148,44 +157,44 @@ export function EvmTracer() {
       <AnimatePresence mode="wait">
         <motion.div
           key={currentStep.step}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
+          exit={{ opacity: 0, y: -6 }}
           className="grid grid-cols-1 lg:grid-cols-12 gap-6"
         >
           {/* Left: Step Description & EVM Opcode */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  {currentStep.phase}
+          <div className="lg:col-span-7 space-y-6">
+            <div className="bg-[#080808] border border-[#222] p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-[#1a1a1a] pb-3">
+                <span className="text-xs font-mono font-bold uppercase tracking-widest text-[#888]">
+                  PHASE: {currentStep.phase}
                 </span>
                 {currentStep.evmOpcode && (
-                  <span className="text-xs font-mono px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                  <span className="text-xs font-mono font-bold uppercase tracking-widest bg-white text-black px-2 py-0.5">
                     OPCODE: {currentStep.evmOpcode}
                   </span>
                 )}
               </div>
 
-              <h3 className="text-lg font-bold text-white">{currentStep.title}</h3>
-              <p className="text-sm text-slate-300 leading-relaxed">
+              <h3 className="text-2xl font-black uppercase tracking-tight text-white">{currentStep.title}</h3>
+              <p className="text-sm text-[#888] leading-relaxed font-sans">
                 {currentStep.description}
               </p>
 
               {/* State Transition Flow Box */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  EOA Code Pointer Mapping State
+              <div className="p-4 bg-[#111] border border-[#222] space-y-3">
+                <div className="text-[10px] font-mono font-bold text-[#666] uppercase tracking-[0.2em]">
+                  EOA CODE POINTER MAPPING STATE
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-xs p-3 rounded-lg bg-slate-900 border border-slate-800/80">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-xs p-3 bg-[#080808] border border-[#222]">
                   <div>
-                    <span className="text-[10px] text-slate-500 block">EOA Address</span>
-                    <span className="text-slate-200">{eoaAddress.slice(0, 10)}...{eoaAddress.slice(-6)}</span>
+                    <span className="text-[10px] text-[#555] block">EOA ADDRESS</span>
+                    <span className="text-white font-bold">{eoaAddress.slice(0, 10)}...{eoaAddress.slice(-6)}</span>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-blue-400 hidden sm:block" />
+                  <ArrowRight className="w-4 h-4 text-white hidden sm:block" />
                   <div>
-                    <span className="text-[10px] text-slate-500 block">Injected Code Bytecode</span>
-                    <span className="text-emerald-400 font-bold break-all">
+                    <span className="text-[10px] text-[#555] block">INJECTED CODE BYTECODE</span>
+                    <span className="text-green-500 font-bold break-all">
                       {currentStep.codePointerHex.length > 20 ? currentStep.codePointerHex.slice(0, 18) + '...' : currentStep.codePointerHex}
                     </span>
                   </div>
@@ -195,35 +204,35 @@ export function EvmTracer() {
           </div>
 
           {/* Right: EVM Stack, Storage & Gas */}
-          <div className="lg:col-span-5 space-y-4">
+          <div className="lg:col-span-5 space-y-6">
             {/* Gas Metering */}
-            <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-amber-400" /> Gas Usage Meter
+            <div className="bg-[#080808] border border-[#222] p-6 space-y-3">
+              <div className="flex items-center justify-between border-b border-[#1a1a1a] pb-3">
+                <span className="text-xs font-mono font-bold uppercase tracking-widest text-[#888] flex items-center gap-1.5">
+                  <Zap className="w-4 h-4 text-white" /> GAS METERING
                 </span>
-                <span className="text-xs font-mono text-amber-300">
-                  Used: {currentStep.gasUsedThisStep.toString()} gas
+                <span className="text-xs font-mono text-white font-bold">
+                  {currentStep.gasUsedThisStep.toString()} GAS
                 </span>
               </div>
-              <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-800">
+              <div className="w-full bg-[#111] h-3 border border-[#222]">
                 <div 
-                  className="bg-gradient-to-r from-blue-500 to-amber-400 h-full transition-all duration-500"
+                  className="bg-white h-full transition-all duration-300"
                   style={{ width: `${Math.min(100, (Number(currentStep.gasUsedThisStep) / 30000) * 100)}%` }}
                 />
               </div>
             </div>
 
             {/* EVM Stack Inspector */}
-            <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
-              <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-blue-400" /> Virtual EVM Stack Frame
+            <div className="bg-[#080808] border border-[#222] p-6 space-y-3">
+              <span className="text-xs font-mono font-bold uppercase tracking-widest text-[#888] flex items-center gap-1.5 border-b border-[#1a1a1a] pb-3">
+                <Layers className="w-4 h-4 text-white" /> VIRTUAL EVM STACK FRAME
               </span>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {currentStep.stack.map((item, i) => (
-                  <div key={i} className="p-2 rounded-lg bg-slate-950 border border-slate-800/80 font-mono text-xs text-blue-300 flex items-center justify-between">
-                    <span className="text-slate-500 text-[10px]">[{i}]</span>
-                    <span>{item}</span>
+                  <div key={i} className="p-2 bg-[#111] border border-[#222] font-mono text-xs text-white flex items-center justify-between">
+                    <span className="text-[#555] text-[10px] font-bold">[{i}]</span>
+                    <span className="font-bold">{item}</span>
                   </div>
                 ))}
               </div>
@@ -231,15 +240,15 @@ export function EvmTracer() {
 
             {/* Storage Changes */}
             {currentStep.storageChanges.length > 0 && (
-              <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
-                <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Database className="w-4 h-4 text-emerald-400" /> State Diff / SSTORE Updates
+              <div className="bg-[#080808] border border-[#222] p-6 space-y-3">
+                <span className="text-xs font-mono font-bold uppercase tracking-widest text-[#888] flex items-center gap-1.5 border-b border-[#1a1a1a] pb-3">
+                  <Database className="w-4 h-4 text-white" /> STATE DIFF (SSTORE)
                 </span>
                 {currentStep.storageChanges.map((sc, idx) => (
-                  <div key={idx} className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] space-y-1">
-                    <div className="text-slate-400 text-[10px] truncate">Slot: {sc.slot}</div>
-                    <div className="text-red-400 line-through text-[10px]">Old: {sc.oldValue}</div>
-                    <div className="text-emerald-400 font-bold">New: {sc.newValue}</div>
+                  <div key={idx} className="p-3 bg-[#111] border border-[#222] font-mono text-[11px] space-y-1">
+                    <div className="text-[#666] text-[10px]">SLOT: {sc.slot}</div>
+                    <div className="text-red-500 line-through text-[10px]">OLD: {sc.oldValue}</div>
+                    <div className="text-green-500 font-bold">NEW: {sc.newValue}</div>
                   </div>
                 ))}
               </div>

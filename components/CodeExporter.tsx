@@ -148,27 +148,34 @@ export default function BaseMiniAppPage() {
   return (
     <div className="space-y-6">
       {/* Banner */}
-      <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="border border-[#222] bg-[#080808] p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 mb-2">
-            <FileCode2 className="w-3.5 h-3.5" /> SDK & Smart Contract Code Exporter
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-[#666] text-xs font-mono uppercase tracking-[0.3em]">
+              CODE GENERATOR
+            </span>
+            <span className="bg-white text-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">
+              TYPESCRIPT & SOLIDITY
+            </span>
           </div>
-          <h2 className="text-xl font-bold text-white">Production Code Generator</h2>
-          <p className="text-slate-400 text-sm mt-1">
-            Export production-ready TypeScript, Viem v2, Wagmi v2, Foundry test scripts, and Base Mini App integration code.
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-white uppercase">
+            PRODUCTION CODE SNIPPETS
+          </h2>
+          <p className="mt-2 text-sm text-[#888] max-w-2xl leading-relaxed">
+            Export production-ready TypeScript, Viem v2, Wagmi v2, Foundry test scripts, and Base Mini App integration snippets.
           </p>
         </div>
 
         {/* Framework Selector */}
-        <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+        <div className="flex flex-wrap items-center gap-2 bg-[#111] p-2 border border-[#222]">
           {(['viem', 'wagmi', 'ethers', 'foundry', 'miniapp'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFramework(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all ${
+              className={`px-3 py-1.5 text-xs font-mono font-bold uppercase tracking-wider border transition-all ${
                 framework === f
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-white text-black border-white'
+                  : 'text-[#888] border-transparent hover:text-white'
               }`}
             >
               {f}
@@ -178,21 +185,21 @@ export default function BaseMiniAppPage() {
       </div>
 
       {/* Code Display Area */}
-      <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-300 flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-blue-400" /> {framework.toUpperCase()} Implementation Snippet
+      <div className="bg-[#080808] border border-[#222] p-6 space-y-3">
+        <div className="flex items-center justify-between border-b border-[#1a1a1a] pb-3">
+          <span className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-white flex items-center gap-2">
+            <Terminal className="w-4 h-4 text-white" /> {framework.toUpperCase()} IMPLEMENTATION
           </span>
           <button
             onClick={copyCode}
-            className="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-all"
+            className="text-xs font-mono text-[#888] hover:text-white uppercase tracking-wider flex items-center gap-1.5 transition-all"
           >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            {copied ? 'Copied to Clipboard' : 'Copy Code'}
+            {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? 'COPIED TO CLIPBOARD' : 'COPY CODE'}
           </button>
         </div>
 
-        <pre className="p-4 bg-slate-950 rounded-xl border border-slate-800 font-mono text-xs text-blue-300 overflow-x-auto max-h-[380px] scrollbar-thin">
+        <pre className="p-4 bg-[#111] border border-[#222] font-mono text-xs text-[#ccc] overflow-x-auto max-h-[380px] scrollbar-thin">
           {snippets[framework]}
         </pre>
       </div>

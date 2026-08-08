@@ -18,7 +18,8 @@ import {
   Smartphone, 
   Sparkles, 
   ShieldCheck,
-  Globe
+  Globe,
+  Activity
 } from 'lucide-react';
 
 export default function Home() {
@@ -31,47 +32,53 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-blue-500 selection:text-white">
+    <main className="min-h-screen bg-[#050505] text-[#e0e0e0] font-sans selection:bg-white selection:text-black">
       {/* Top Navbar */}
-      <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 p-0.5 shadow-md shadow-blue-500/20">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center text-blue-400">
-                <Zap className="w-5 h-5 fill-blue-400" />
-              </div>
+      <header className="border-b border-[#222] bg-[#080808] sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-white text-black font-black flex items-center justify-center text-xl tracking-tighter">
+              7702
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-extrabold tracking-tight text-white">EIP-7702</h1>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                  ETH Node Studio
+              <div className="flex items-center gap-3">
+                <span className="text-[#666] text-[10px] font-mono uppercase tracking-[0.3em]">
+                  Ethereum Improvement Proposal
+                </span>
+                <span className="bg-[#181818] text-[#888] text-[10px] font-mono px-2 py-0.5 border border-[#333] uppercase tracking-wider">
+                  PECTRA READY
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium">Account Abstraction & Pectra EOA Upgrade Playground</p>
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tighter leading-none text-white mt-0.5">
+                EIP-7702 NODE STUDIO
+              </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-slate-400 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Base Sepolia (84532)
+          <div className="flex items-center gap-4 text-right">
+            <div className="hidden sm:block">
+              <div className="bg-white text-black px-3 py-1 text-xs font-black uppercase tracking-widest inline-block">
+                Base Sepolia Active
+              </div>
+              <div className="mt-1 font-mono text-[10px] text-[#666] uppercase tracking-wider">
+                BUILD: 0xFD21..99A • CHAIN: 84532
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       {/* Navigation Sub-header Tabs */}
-      <nav className="border-b border-slate-800/80 bg-slate-900/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-1 overflow-x-auto py-2 scrollbar-none">
+      <nav className="border-b border-[#222] bg-[#0a0a0a]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2 overflow-x-auto py-2.5 scrollbar-none">
           {[
-            { id: 'builder', label: 'Tx Builder', icon: Zap },
-            { id: 'tracer', label: 'EVM Tracer', icon: Cpu },
-            { id: 'blueprints', label: 'Blueprints', icon: Layers },
-            { id: 'rpc', label: 'Node RPC', icon: Terminal },
-            { id: 'code', label: 'Code Snippets', icon: FileCode2 },
-            { id: 'miniapp', label: 'Base MiniApp', icon: Smartphone },
-            { id: 'ai', label: 'AI Assistant', icon: Sparkles }
+            { id: 'builder', label: '01. TX BUILDER', icon: Zap },
+            { id: 'tracer', label: '02. EVM TRACER', icon: Cpu },
+            { id: 'blueprints', label: '03. BLUEPRINTS', icon: Layers },
+            { id: 'rpc', label: '04. NODE RPC', icon: Terminal },
+            { id: 'code', label: '05. CODE SNIPPETS', icon: FileCode2 },
+            { id: 'miniapp', label: '06. BASE MINIAPP', icon: Smartphone },
+            { id: 'ai', label: '07. AI ASSISTANT', icon: Sparkles }
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -79,10 +86,10 @@ export default function Home() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-mono font-bold tracking-wider uppercase transition-all border ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    ? 'bg-white text-black border-white'
+                    : 'bg-[#111] text-[#888] border-[#222] hover:text-white hover:border-[#444]'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -107,10 +114,18 @@ export default function Home() {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 mt-12 py-6 bg-slate-950">
-        <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>EIP-7702 Ethereum Node Studio • Built for Base & Ethereum Pectra Ecosystem</span>
-          <span className="font-mono text-slate-600">Magic Prefix: 0x05 • Type: 0x04 • Code: 0xef0100</span>
+      <footer className="border-t border-[#222] mt-16 py-8 bg-[#080808]">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4 font-mono text-[10px] uppercase tracking-widest text-[#555]">
+          <div className="flex items-center gap-4">
+            <span className="text-white font-bold">SYSTEM: OPERATIONAL</span>
+            <span>•</span>
+            <span>MAGIC PREFIX: 0x05</span>
+            <span>•</span>
+            <span>TYPE: 0x04</span>
+          </div>
+          <div className="text-right">
+            <span>EIP-7702 ETHEREUM NODE STUDIO • BASE Ecosystem</span>
+          </div>
         </div>
       </footer>
     </main>

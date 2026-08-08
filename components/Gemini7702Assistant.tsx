@@ -8,7 +8,7 @@ export function Gemini7702Assistant() {
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([
     {
       role: 'assistant',
-      text: 'Hello! I am your AI Core Protocol Assistant specializing in EIP-7702, Ethereum node state execution, Account Abstraction, and Base network development. Ask me anything about authorization hashes, Type-4 transaction formats, or gas savings!'
+      text: 'Greetings. I am your AI Core Protocol Assistant specializing in EIP-7702, Ethereum node state execution, Account Abstraction, and Base network architecture. Query me on authorization hashes, Type-4 transaction formats, or gas optimizations.'
     }
   ]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -54,14 +54,21 @@ export function Gemini7702Assistant() {
   return (
     <div className="space-y-6">
       {/* Banner */}
-      <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="border border-[#222] bg-[#080808] p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 mb-2">
-            <Sparkles className="w-3.5 h-3.5" /> AI Protocol Specialist (Gemini 2.5)
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-[#666] text-xs font-mono uppercase tracking-[0.3em]">
+              GEMINI 2.5 PROTOCOL SPECIALIST
+            </span>
+            <span className="bg-white text-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">
+              AI ENGINE ONLINE
+            </span>
           </div>
-          <h2 className="text-xl font-bold text-white">EIP-7702 AI Architecture Assistant</h2>
-          <p className="text-slate-400 text-sm mt-1">
-            Get instant expert explanations on authorization signatures, opcode mechanics, security attack vectors, and gas optimization.
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-white uppercase">
+            EIP-7702 AI ARCHITECTURE ASSISTANT
+          </h2>
+          <p className="mt-2 text-sm text-[#888] max-w-2xl leading-relaxed">
+            Instant protocol explanations on authorization signatures, opcode mechanics, security attack vectors, and gas optimization.
           </p>
         </div>
       </div>
@@ -78,15 +85,15 @@ export function Gemini7702Assistant() {
             key={idx}
             onClick={() => handleSend(q)}
             disabled={loading}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 hover:text-white transition-all text-left"
+            className="px-3.5 py-2 bg-[#080808] hover:bg-[#111] border border-[#222] hover:border-[#444] text-xs font-mono font-bold text-[#aaa] hover:text-white uppercase tracking-wider transition-all text-left"
           >
-            💡 {q}
+            • {q}
           </button>
         ))}
       </div>
 
       {/* Chat Container */}
-      <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+      <div className="bg-[#080808] border border-[#222] p-6 space-y-4">
         <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin">
           {messages.map((m, i) => (
             <div
@@ -96,49 +103,49 @@ export function Gemini7702Assistant() {
               }`}
             >
               {m.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                <div className="w-8 h-8 bg-white text-black flex items-center justify-center font-bold shrink-0">
                   <Bot className="w-4 h-4" />
                 </div>
               )}
               <div
-                className={`p-4 rounded-2xl max-w-[80%] leading-relaxed ${
+                className={`p-4 leading-relaxed font-mono text-xs ${
                   m.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-tr-none'
-                    : 'bg-slate-950 border border-slate-800 text-slate-200 rounded-tl-none font-sans text-xs'
+                    ? 'bg-white text-black font-bold border border-white'
+                    : 'bg-[#111] border border-[#222] text-[#ccc]'
                 }`}
               >
                 <div className="whitespace-pre-wrap">{m.text}</div>
               </div>
               {m.role === 'user' && (
-                <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 shrink-0">
+                <div className="w-8 h-8 bg-[#222] text-white flex items-center justify-center font-bold shrink-0 border border-[#333]">
                   <User className="w-4 h-4" />
                 </div>
               )}
             </div>
           ))}
           {loading && (
-            <div className="flex items-center gap-2 text-xs text-blue-400 p-2">
-              <RefreshCw className="w-4 h-4 animate-spin" /> Gemini is analyzing EVM protocol specification...
+            <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-white p-2">
+              <RefreshCw className="w-4 h-4 animate-spin" /> ANALYZING EVM PROTOCOL SPECIFICATION...
             </div>
           )}
         </div>
 
         {/* Input Bar */}
-        <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+        <div className="flex items-center gap-2 pt-4 border-t border-[#1a1a1a]">
           <input
             type="text"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask about EIP-7702, authorization lists, or Base mini app setup..."
-            className="flex-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+            placeholder="Ask about EIP-7702, authorization lists, or Base miniapp setup..."
+            className="flex-1 px-4 py-3 bg-[#111] border border-[#222] text-xs font-mono text-white focus:outline-none focus:border-white"
           />
           <button
             onClick={() => handleSend()}
             disabled={loading || !prompt.trim()}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-xl font-semibold text-xs transition-all flex items-center gap-1.5"
+            className="px-5 py-3 bg-white text-black hover:bg-[#eee] disabled:opacity-40 font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 border border-white"
           >
-            <Send className="w-4 h-4" /> Send
+            <Send className="w-3.5 h-3.5" /> SEND
           </button>
         </div>
       </div>

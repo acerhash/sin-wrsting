@@ -17,25 +17,86 @@ import {
   Terminal, 
   Code2,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Save,
+  RotateCcw
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+
+const STORAGE_KEY = 'eip7702_builder_form_state_v1';
+
+const DEFAULT_STATE = {
+  chainId: 84532,
+  eoaAddress: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
+  targetAddress: '0x770200000000000000000000000000000000ba7c',
+  nonce: 0,
+  yParity: 0,
+  rVal: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+  sVal: '0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321'
+};
 
 export function Eip7702Builder() {
-  const [chainId, setChainId] = useState<number>(84532); // Base Sepolia default
-  const [eoaAddress, setEoaAddress] = useState<string>('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'); // Vitalik EOA mock
-  const [targetAddress, setTargetAddress] = useState<string>('0x770200000000000000000000000000000000ba7c');
-  const [nonce, setNonce] = useState<number>(0);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [chainId, setChainId] = useState<number>(DEFAULT_STATE.chainId);
+  const [eoaAddress, setEoaAddress] = useState<string>(DEFAULT_STATE.eoaAddress);
+  const [targetAddress, setTargetAddress] = useState<string>(DEFAULT_STATE.targetAddress);
+  const [nonce, setNonce] = useState<number>(DEFAULT_STATE.nonce);
 
   // Signature state
-  const [yParity, setYParity] = useState<number>(0);
-  const [rVal, setRVal] = useState<string>('0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef');
-  const [sVal, setSVal] = useState<string>('0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321');
-  
+  const [yParity, setYParity] = useState<number>(DEFAULT_STATE.yParity);
+  const [rVal, setRVal] = useState<string>(DEFAULT_STATE.rVal);
+  const [sVal, setSVal] = useState<string>(DEFAULT_STATE.sVal);
+
+  const [copied, setCopied] = useState<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+
   // Computed values
   const [authHash, setAuthHash] = useState<string>('');
   const [codePointer, setCodePointer] = useState<string>('');
+
+  // Auto-load state on mount
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (typeof parsed.chainId === 'number') setChainId(parsed.chainId);
+          if (typeof parsed.eoaAddress === 'string') setEoaAddress(parsed.eoaAddress);
+          if (typeof parsed.targetAddress === 'string') setTargetAddress(parsed.targetAddress);
+          if (typeof parsed.nonce === 'number') setNonce(parsed.nonce);
+          if (typeof parsed.yParity === 'number') setYParity(parsed.yParity);
+          if (typeof parsed.rVal === 'string') setRVal(parsed.rVal);
+          if (typeof parsed.sVal === 'string') setSVal(parsed.sVal);
+        }
+      }
+    } catch (e) {
+      console.error('Error loading EIP-7702 configuration from localStorage:', e);
+    } finally {
+      setIsLoaded(true);
+    }
+  }, []);
+
+  // Auto-save state to localStorage on change
+  useEffect(() => {
+    if (!isLoaded) return;
+    try {
+      if (typeof window !== 'undefined') {
+        const stateToSave = {
+          chainId,
+          eoaAddress,
+          targetAddress,
+          nonce,
+          yParity,
+          rVal,
+          sVal
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+        setLastSavedAt(new Date().toLocaleTimeString());
+      }
+    } catch (e) {
+      console.error('Error persisting EIP-7702 configuration to localStorage:', e);
+    }
+  }, [chainId, eoaAddress, targetAddress, nonce, yParity, rVal, sVal, isLoaded]);
 
   useEffect(() => {
     try {
@@ -64,6 +125,23 @@ export function Eip7702Builder() {
     setYParity(Math.random() > 0.5 ? 1 : 0);
   };
 
+  const handleResetDefaults = () => {
+    setChainId(DEFAULT_STATE.chainId);
+    setEoaAddress(DEFAULT_STATE.eoaAddress);
+    setTargetAddress(DEFAULT_STATE.targetAddress);
+    setNonce(DEFAULT_STATE.nonce);
+    setYParity(DEFAULT_STATE.yParity);
+    setRVal(DEFAULT_STATE.rVal);
+    setSVal(DEFAULT_STATE.sVal);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const fullTxObject = {
     type: '0x04',
     chainId,
@@ -89,117 +167,151 @@ export function Eip7702Builder() {
 
   return (
     <div className="space-y-6">
-      {/* Overview Banner */}
-      <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 backdrop-blur-md relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full filter blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 mb-2">
-              <Zap className="w-3.5 h-3.5" /> EIP-7702 Transaction Type 0x04
-            </div>
-            <h2 className="text-xl font-bold text-white">Authorization Tuple & Transaction Builder</h2>
-            <p className="text-slate-400 text-sm mt-1">
-              Construct EIP-7702 signed authorization lists. Allows EOAs to temporarily adopt smart contract code during execution without deploying proxy contracts.
-            </p>
+      {/* Overview Banner - Bold Typography Styling */}
+      <div className="border border-[#222] bg-[#080808] p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-[#666] text-xs font-mono uppercase tracking-[0.3em]">
+              AUTHORIZATION TUPLE & TYPE-0x04 TX
+            </span>
+            <span className="bg-green-500 text-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
+              <Save className="w-3 h-3" />
+              AUTO-SAVED
+            </span>
           </div>
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-white uppercase">
+            EIP-7702 TRANSACTION BUILDER
+          </h2>
+          <p className="mt-2 text-sm text-[#888] max-w-2xl leading-relaxed">
+            Construct EIP-7702 signed authorization lists. Allows EOAs to temporarily adopt smart contract capabilities during transaction execution without contract deployment. Configuration is automatically persisted to local storage.
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={handleRandomizeSig}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition-all shadow-sm"
+            className="bg-white text-black hover:bg-[#eee] px-4 py-2 text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 border border-white transition-all"
           >
-            <RefreshCw className="w-3.5 h-3.5" /> Re-sign Authorization
+            <RefreshCw className="w-3.5 h-3.5" /> RE-SIGN AUTH
           </button>
+          <button
+            onClick={handleResetDefaults}
+            className="bg-[#111] text-[#aaa] hover:text-white hover:border-[#444] px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-2 border border-[#222] transition-all"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> RESET DEFAULTS
+          </button>
+        </div>
+      </div>
+
+      {/* Auto-save Status Indicator Bar */}
+      <div className="bg-[#0a0a0a] border border-[#222] px-4 py-2 flex items-center justify-between font-mono text-[11px] text-[#666] uppercase tracking-wider">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-green-500"></span>
+          <span>LOCALSTORAGE PERSISTENCE ACTIVE</span>
+        </div>
+        <div>
+          {lastSavedAt ? `LAST UPDATED: ${lastSavedAt}` : 'READY'}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Form Controls */}
-        <div className="lg:col-span-6 space-y-4">
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
-            <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-              <Key className="w-4 h-4 text-blue-400" /> Authorization Parameters
-            </h3>
+        <div className="lg:col-span-6 space-y-6">
+          <div className="bg-[#080808] border border-[#222] p-6 space-y-5">
+            <div className="border-b border-[#1a1a1a] pb-3 flex items-center justify-between">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-white flex items-center gap-2">
+                <Key className="w-4 h-4 text-white" /> 01. AUTHORIZATION PARAMETERS
+              </h3>
+              <span className="text-[10px] font-mono text-[#555]">TYPE 0x04</span>
+            </div>
 
             {/* Network Chain ID */}
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Target Chain ID</label>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666] mb-1.5">
+                TARGET CHAIN ID (0 = AGNOSTIC)
+              </label>
               <select
                 value={chainId}
                 onChange={(e) => setChainId(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2.5 bg-[#111] border border-[#222] text-sm font-mono text-white focus:outline-none focus:border-white transition-all"
               >
                 <option value={8453}>Base Mainnet (Chain ID 8453)</option>
                 <option value={84532}>Base Sepolia Testnet (Chain ID 84532)</option>
                 <option value={1}>Ethereum Mainnet (Chain ID 1)</option>
                 <option value={17000}>Holesky Testnet (Chain ID 17000)</option>
-                <option value={0}>Chain Agnostic (Chain ID 0 - Valid on Any EVM)</option>
+                <option value={0}>Chain Agnostic (Chain ID 0 - Multi-chain)</option>
               </select>
             </div>
 
             {/* EOA Address */}
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Signer EOA Address</label>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666] mb-1.5">
+                SIGNER EOA ADDRESS
+              </label>
               <input
                 type="text"
                 value={eoaAddress}
                 onChange={(e) => setEoaAddress(e.target.value)}
                 placeholder="0x..."
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2.5 bg-[#111] border border-[#222] text-sm font-mono text-white focus:outline-none focus:border-white transition-all"
               />
             </div>
 
             {/* Target Code Address */}
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">
-                Delegation Code Address (Target Smart Account / Batcher)
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666] mb-1.5">
+                DELEGATION CODE TARGET (SMART ACCOUNT / BATCHER)
               </label>
               <input
                 type="text"
                 value={targetAddress}
                 onChange={(e) => setTargetAddress(e.target.value)}
                 placeholder="0x..."
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2.5 bg-[#111] border border-[#222] text-sm font-mono text-white focus:outline-none focus:border-white transition-all"
               />
             </div>
 
             {/* EOA Nonce */}
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">
-                EOA Nonce (Must match current EOA nonce)
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#666] mb-1.5">
+                EOA NONCE (MUST MATCH CURRENT STATE NONCE)
               </label>
               <input
                 type="number"
                 value={nonce}
                 onChange={(e) => setNonce(Number(e.target.value))}
                 min={0}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2.5 bg-[#111] border border-[#222] text-sm font-mono text-white focus:outline-none focus:border-white transition-all"
               />
             </div>
 
             {/* Signature Parity & Values */}
-            <div className="pt-2 border-t border-slate-800/80 space-y-3">
+            <div className="pt-3 border-t border-[#1a1a1a] space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-300">Secp256k1 Signature (yParity, r, s)</span>
-                <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                  Signature Active
+                <span className="text-[10px] font-mono uppercase tracking-widest text-[#888]">
+                  SECP256K1 SIGNATURE TUPLE (YPARITY, R, S)
+                </span>
+                <span className="text-[10px] font-mono bg-white text-black px-2 py-0.5 font-bold uppercase tracking-wider">
+                  VALIDATED
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <span className="block text-[10px] text-slate-500">yParity</span>
+                  <span className="block text-[10px] font-mono text-[#555] mb-1">YPARITY</span>
                   <input
                     type="number"
                     value={yParity}
                     onChange={(e) => setYParity(Number(e.target.value))}
-                    className="w-full px-2 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-slate-200"
+                    className="w-full px-2.5 py-2 bg-[#111] border border-[#222] text-xs font-mono text-white"
                   />
                 </div>
                 <div className="col-span-2">
-                  <span className="block text-[10px] text-slate-500">r value</span>
+                  <span className="block text-[10px] font-mono text-[#555] mb-1">R VALUE</span>
                   <input
                     type="text"
-                    value={rVal.slice(0, 16) + '...'}
+                    value={rVal.slice(0, 20) + '...'}
                     readOnly
-                    className="w-full px-2 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-slate-400"
+                    className="w-full px-2.5 py-2 bg-[#111] border border-[#222] text-xs font-mono text-[#777]"
                   />
                 </div>
               </div>
@@ -208,74 +320,80 @@ export function Eip7702Builder() {
         </div>
 
         {/* Computations & Inspector */}
-        <div className="lg:col-span-6 space-y-4">
+        <div className="lg:col-span-6 space-y-6">
           {/* Authorization Magic Hash Box */}
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-950/40 to-slate-900 border border-blue-500/30 space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="bg-[#080808] border border-[#222] p-6 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#1a1a1a] pb-3">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-blue-400" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-300">Authorization Hash</h4>
+                <ShieldCheck className="w-4 h-4 text-white" />
+                <h4 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-white">
+                  02. AUTHORIZATION HASH
+                </h4>
               </div>
               <button
                 onClick={() => copyToClipboard(authHash, 'authHash')}
-                className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
+                className="text-xs font-mono text-[#888] hover:text-white uppercase tracking-wider flex items-center gap-1.5 transition-all"
               >
-                {copied === 'authHash' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied === 'authHash' ? 'Copied' : 'Copy Hash'}
+                {copied === 'authHash' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied === 'authHash' ? 'COPIED' : 'COPY HASH'}
               </button>
             </div>
 
-            <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 font-mono text-xs text-blue-300 break-all">
+            <div className="p-3 bg-[#111] border border-[#222] font-mono text-xs text-white break-all">
               {authHash}
             </div>
 
-            <p className="text-[11px] text-slate-400">
-              Computed as <code className="text-blue-300">keccak256(0x05 || RLP([chain_id, address, nonce]))</code>. Magic prefix <code className="text-amber-300">0x05</code> prevents replay attacks across EIP-191 & EIP-712 standard messages.
+            <p className="text-xs text-[#777] leading-relaxed">
+              Computed as <code className="text-white">keccak256(0x05 || RLP([chain_id, address, nonce]))</code>. Magic prefix <code className="text-white font-bold">0x05</code> prevents replay collisions with standard EIP-191 & EIP-712 messages.
             </p>
           </div>
 
           {/* Code Pointer Injected Bytecode */}
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                <Code2 className="w-4 h-4 text-amber-400" /> EOA Code Pointer (23 Bytes)
+          <div className="bg-[#080808] border border-[#222] p-6 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#1a1a1a] pb-3">
+              <h4 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-white flex items-center gap-2">
+                <Code2 className="w-4 h-4 text-white" /> 03. EOA CODE POINTER (23 BYTES)
               </h4>
               <button
                 onClick={() => copyToClipboard(codePointer, 'codePointer')}
-                className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
+                className="text-xs font-mono text-[#888] hover:text-white uppercase tracking-wider flex items-center gap-1.5 transition-all"
               >
-                {copied === 'codePointer' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied === 'codePointer' ? 'Copied' : 'Copy'}
+                {copied === 'codePointer' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied === 'codePointer' ? 'COPIED' : 'COPY'}
               </button>
             </div>
 
-            <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 font-mono text-xs text-amber-300 break-all">
-              <span className="text-emerald-400 font-bold">0xef0100</span>
+            <div className="p-3 bg-[#111] border border-[#222] font-mono text-xs text-white break-all">
+              <span className="text-green-500 font-bold">0xef0100</span>
               {codePointer.slice(8)}
             </div>
 
-            <div className="flex items-center gap-3 text-[11px] text-slate-400">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Magic Prefix: 0xef0100</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" /> Target Delegate Address</span>
+            <div className="flex flex-wrap items-center gap-4 text-[11px] font-mono text-[#666] uppercase tracking-wider">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-green-500"></span> PREFIX: 0xef0100
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-white"></span> TARGET DELEGATE
+              </span>
             </div>
           </div>
 
           {/* Full JSON Payload */}
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-purple-400" /> Type-4 Transaction Object
+          <div className="bg-[#080808] border border-[#222] p-6 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#1a1a1a] pb-3">
+              <h4 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-white flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-white" /> 04. TYPE-4 TX PAYLOAD
               </h4>
               <button
                 onClick={() => copyToClipboard(JSON.stringify(fullTxObject, null, 2), 'txObject')}
-                className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
+                className="text-xs font-mono text-[#888] hover:text-white uppercase tracking-wider flex items-center gap-1.5 transition-all"
               >
-                {copied === 'txObject' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied === 'txObject' ? 'Copied Payload' : 'Copy JSON'}
+                {copied === 'txObject' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied === 'txObject' ? 'COPIED' : 'COPY JSON'}
               </button>
             </div>
 
-            <pre className="p-3 bg-slate-950/90 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-300 overflow-x-auto max-h-48 scrollbar-thin">
+            <pre className="p-3 bg-[#111] border border-[#222] font-mono text-[11px] text-[#ccc] overflow-x-auto max-h-48 scrollbar-thin">
               {JSON.stringify(fullTxObject, null, 2)}
             </pre>
           </div>
