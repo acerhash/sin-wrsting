@@ -251,6 +251,16 @@ export interface GasEstimateResult {
     baseTxGas: number;
     eip7702AuthGas: number;
     executionGas: number;
+    calldataGas?: number;
+  };
+  networkConditions?: {
+    baseFeeGwei: number;
+    priorityFeeGwei: number;
+    effectiveGasPriceGwei: number;
+    ethPriceUsd: number;
+    baseFeeBurnEth: string;
+    priorityTipEth: string;
+    numTuples: number;
   };
   estimatedFeeEth: string;
   estimatedFeeUsd: string;
@@ -278,32 +288,50 @@ export interface Eip7702HistoryItem {
 }
 
 /**
- * Mock RPC call simulating eth_estimateGas for EIP-7702 Type-4 transaction
+ * Mock RPC call simulating eth_estimateGas for EIP-7702 Type-4 transaction with live network parameters
  */
 const mockEstimateGasRpc = async (
   target: string,
-  maxFeePerGasGwei: number
+  maxFeePerGasGwei: number,
+  params?: {
+    baseFeeGwei?: number;
+    priorityFeeGwei?: number;
+    ethPriceUsd?: number;
+    numTuples?: number;
+    calldataBytes?: number;
+    profileGas?: number;
+  }
 ): Promise<GasEstimateResult> => {
   const startTime = performance.now();
-  // Simulate network RPC round-trip delay (400 - 700 ms)
-  const delayMs = Math.floor(Math.random() * 300) + 400;
+  // Simulate network RPC round-trip delay (350 - 600 ms)
+  const delayMs = Math.floor(Math.random() * 250) + 350;
   await new Promise((resolve) => setTimeout(resolve, delayMs));
 
-  const baseTxGas = 21000;
-  // EIP-7702 authorization list item processing cost (~25,000 gas per auth entry)
-  const eip7702AuthGas = 25000;
-  
-  // Execution gas depending on target contract address complexity
-  const targetSeed = parseInt(target.slice(-4) || '7702', 16) % 12000;
-  const executionGas = 28400 + targetSeed;
+  const baseFee = params?.baseFeeGwei ?? (maxFeePerGasGwei > 2 ? maxFeePerGasGwei - 2 : maxFeePerGasGwei);
+  const priorityFee = params?.priorityFeeGwei ?? 2;
+  const effectiveGasPriceGwei = baseFee + priorityFee;
+  const ethPrice = params?.ethPriceUsd ?? 2800;
+  const tuples = params?.numTuples ?? 1;
+  const calldataB = params?.calldataBytes ?? 128;
 
-  const totalGas = baseTxGas + eip7702AuthGas + executionGas;
+  const baseTxGas = 21000;
+  // EIP-7702 authorization list processing cost (~25,000 gas per tuple)
+  const eip7702AuthGas = tuples * 25000;
+  const calldataGas = calldataB * 16;
+
+  // Execution gas depending on target contract address complexity
+  const targetSeed = parseInt(target.slice(-4) || '7702', 16) % 8000;
+  const executionGas = (params?.profileGas ?? 28400) + targetSeed;
+
+  const totalGas = baseTxGas + eip7702AuthGas + calldataGas + executionGas;
   const hexResult = '0x' + totalGas.toString(16);
 
-  const totalGasFeeWei = BigInt(totalGas) * BigInt(Math.round(maxFeePerGasGwei * 1e9));
-  const feeEthNum = Number(totalGasFeeWei) / 1e18;
-  const feeEth = feeEthNum.toFixed(6);
-  const feeUsd = (feeEthNum * 2800).toFixed(2); // Assume $2,800 / ETH
+  const totalFeeEthNum = (totalGas * effectiveGasPriceGwei * 1e9) / 1e18;
+  const baseFeeBurnEthNum = (totalGas * baseFee * 1e9) / 1e18;
+  const priorityTipEthNum = (totalGas * priorityFee * 1e9) / 1e18;
+
+  const feeEth = totalFeeEthNum.toFixed(6);
+  const feeUsd = (totalFeeEthNum * ethPrice).toFixed(2);
 
   const endTime = performance.now();
   const latency = Math.round(endTime - startTime);
@@ -314,7 +342,17 @@ const mockEstimateGasRpc = async (
     breakdown: {
       baseTxGas,
       eip7702AuthGas,
-      executionGas
+      executionGas,
+      calldataGas
+    },
+    networkConditions: {
+      baseFeeGwei: baseFee,
+      priorityFeeGwei: priorityFee,
+      effectiveGasPriceGwei,
+      ethPriceUsd: ethPrice,
+      baseFeeBurnEth: baseFeeBurnEthNum.toFixed(6),
+      priorityTipEth: priorityTipEthNum.toFixed(6),
+      numTuples: tuples
     },
     estimatedFeeEth: feeEth,
     estimatedFeeUsd: feeUsd,
